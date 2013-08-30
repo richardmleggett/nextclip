@@ -173,7 +173,7 @@ do
     fi
 done
 
-read_length=`sed -n '2p' ${libdir}/reads/${read_one} | perl -nae 'chomp; print length($_)'`
+read_length=`head -n 2 ${libdir}/reads/${read_one} | tail -n 1 | perl -nae 'chomp; print length($_)'`
 machine=`head -n 1 ${libdir}/reads/${read_one} | awk -F':' '{print $1}'`
 
 echo "Read length is ${read_length}"
