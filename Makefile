@@ -1,6 +1,10 @@
 BIN = bin
 MAXK = 63
 
+ifdef MAC
+CC=gcc
+endif
+
 ifeq ($(MAXK),31)
    BITFIELDS = 1
 endif
@@ -18,7 +22,8 @@ ifeq ($(MAXK),127)
 endif
 
 ifdef MAC
-MACFLAG = -fnested-functions -L/opt/local/lib/ 
+MACFLAG = -fnested-functions
+# -L/opt/local/lib/ 
 endif
 
 OPT	= $(ARCH) -Wall -O3 $(MACFLAG) -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
