@@ -1,26 +1,38 @@
+/*----------------------------------------------------------------------*
+ * File:    nextclip.c                                                  *
+ * Purpose: Analysis and read preparation for Nextera LMP               *
+ * Author:  Richard Leggett                                             *
+ *          The Genome Analysis Centre (TGAC), Norwich, UK              *
+ *          richard.leggett@tgac.ac.uk    								*
+ *----------------------------------------------------------------------*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <getopt.h>
 #include <math.h>
+#include <time.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
 #include "hash_table.h"
 
-//#define USE_MULTIPLE_HASHES
+/* Experiment that I decided against using
+ * #define USE_MULTIPLE_HASHES
+ * #define NUMBER_OF_HASHES 3
+ * Who knows, may use in the future!
+ */
 
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "0.4"
+#define NEXTCLIP_VERSION "0.6"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
 #define TOTAL_KMER_SIZE (4 * SEPARATE_KMER_SIZE)
 #define MAX_DUPLICATES 100
-#define NUMBER_OF_HASHES 3
 
 /*----------------------------------------------------------------------*
  * Structures
@@ -31,6 +43,9 @@ typedef struct {
     char quality_header[1024];
     char qualities[MAX_READ_LENGTH];
     int read_size;
+    int trim_at_base;
+    boolean trimmed_for_junction_adaptor;
+    boolean trimmed_for_external_adaptor;
 } FastQRead;
 
 typedef struct {
@@ -46,10 +61,26 @@ typedef struct {
     double identity[2];
     int read_start;
     int read_end;
-    int transposon_start;
-    int transposon_end;
+    int query_start;
+    int query_end;
     int accepted;
-} AlignmentResult;
+} JunctionAdaptorAlignment;
+
+typedef struct {
+    char adaptor[100];
+    int read_size;
+    int score;
+    int position;
+    int matches;
+    int mismatches;
+    int alignment_length;
+    double identity;
+    int read_start;
+    int read_end;
+    int query_start;
+    int query_end;
+    int accepted;
+} GenericAdaptorAlignment;
 
 typedef struct {
     int read_length;
@@ -63,21 +94,27 @@ typedef struct {
     char log_filename[MAX_PATH_LENGTH];
     int num_read_pairs;
     int count_adaptor_found[2];
+    int count_adaptor_and_external_found[2];
     int count_no_adaptor[2];
+    int count_external_only_found[2];
     int count_long_enough[2];
     int count_too_short[2];
     double percent_adaptor_found[2];
     double percent_no_adaptor[2];
     double percent_long_enough[2];
     double percent_too_short[2];
+    double percent_adaptor_and_external_found[2];
+    double percent_external_only_found[2];
     int count_by_category[NUMBER_OF_CATEGORIES];
     int count_by_category_long_enough[NUMBER_OF_CATEGORIES];
     int count_by_category_too_short[NUMBER_OF_CATEGORIES];
     int count_by_category_relaxed_hit[NUMBER_OF_CATEGORIES];
+    int count_by_category_external_clipped[NUMBER_OF_CATEGORIES];
     double percent_by_category[NUMBER_OF_CATEGORIES];
     double percent_by_category_long_enough[NUMBER_OF_CATEGORIES];
     double percent_by_category_too_short[NUMBER_OF_CATEGORIES];
     double percent_by_category_relaxed_hit[NUMBER_OF_CATEGORIES];
+    double percent_by_category_external_clipped[NUMBER_OF_CATEGORIES];
     int total_too_short;
     double percent_total_too_short;
     int total_long_enough;
@@ -102,8 +139,9 @@ typedef struct {
 /*----------------------------------------------------------------------*
  * Globals
  *----------------------------------------------------------------------*/
-char adaptor[] = "CTGTCTCTTATACACATCT";
-char transposon[] = "CTGTCTCTTATACACATCTAGATGTGTATAAGAGACAG";
+char single_junction_adaptor[] = "CTGTCTCTTATACACATCT";
+char duplicate_junction_adaptor[] = "CTGTCTCTTATACACATCTAGATGTGTATAAGAGACAG";
+char* external_adaptors[2] = {"GATCGGAAGAGCACACGTCTGAACTCCAGTCAC", "GATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT"};
 int minimum_read_size = 25;
 int strict_double_match = 34;
 int strict_single_match = 18;
@@ -167,6 +205,8 @@ void initialise_stats(MPStats* stats)
         stats->count_too_short[i] = 0;
         stats->count_long_enough[i] = 0;
         stats->input_fp[i] = 0;
+        stats->count_adaptor_and_external_found[i] = 0;
+        stats->count_external_only_found[i] = 0;
     }
 
     for (i=0; i<NUMBER_OF_CATEGORIES; i++) {
@@ -177,6 +217,7 @@ void initialise_stats(MPStats* stats)
         stats->count_by_category_long_enough[i] = 0;
         stats->count_by_category_too_short[i] = 0;
         stats->count_by_category_relaxed_hit[i] = 0;
+        stats->count_by_category_external_clipped[i] = 0;
 
         for (j=0; j<MAX_READ_LENGTH; j++) {
             stats->read_length_counts[i][0][j] = 0;
@@ -206,12 +247,12 @@ void initialise_stats(MPStats* stats)
 }
 
 /*----------------------------------------------------------------------*
- * Function:   initialise_result
- * Purpose:    Initialise AlignmentResult structure
- * Parameters: result -> an AlignmentResult structure
+ * Function:   initialise_junction_adaptor_alignment
+ * Purpose:    Initialise structure
+ * Parameters: result -> a JunctionAdaptorAlignment structure
  * Returns:    None
  *----------------------------------------------------------------------*/
-void initialise_result(AlignmentResult* result)
+void initialise_junction_adaptor_alignment(JunctionAdaptorAlignment* result)
 {
     result->score = -1;
     result->position = -1;
@@ -224,8 +265,29 @@ void initialise_result(AlignmentResult* result)
     result->matches[1] = 0;
     result->read_start= 0;
     result->read_end = 0;
-    result->transposon_start = 0;
-    result->transposon_end = 0;
+    result->query_start = 0;
+    result->query_end = 0;
+    result->accepted = 0;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:   initialise_generic_adaptor_alignment
+ * Purpose:    Initialise structure
+ * Parameters: result -> a GenericAdaptorAlignment structure
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void initialise_generic_adaptor_alignment(GenericAdaptorAlignment* result)
+{
+    result->score = -1;
+    result->position = -1;
+    result->alignment_length = 0;
+    result->identity = 0;
+    result->mismatches = 0;
+    result->matches = 0;
+    result->read_start= 0;
+    result->read_end = 0;
+    result->query_start = 0;
+    result->query_end = 0;
     result->accepted = 0;
 }
 
@@ -274,7 +336,6 @@ void usage(void)
            "    [-l | --log] Log filename\n" \
            "    [-m | --min_length] Minimum usable read length\n" \
            "    [-n | --number_of_reads] Approximate number of reads (default 20,000,000)\n" \
-           "    [-s | --adaptor_sequence] Adaptor sequence - default CTGTCTCTTATACACATCT\n" \
            "    [-o | --output_prefix] Prefix for output files\n" \
            "    [-t | --trim_ends] Trim ends of non-matching category B and C reads by amount (default 19)\n" \
            "    [-x | --strict_match] Strict alignment matches (default '34,18')\n" \
@@ -300,8 +361,10 @@ void chomp(char* str)
 
 /*----------------------------------------------------------------------*
  * Function:   parse_csv_params
- * Purpose:    
- * Parameters: 
+ * Purpose:    Parse comma separated arguments - eg. X,Y
+ * Parameters: s -> string to parse
+ *             a -> argument one
+ *             b -> argument two
  * Returns:    None
  *----------------------------------------------------------------------*/
 void parse_csv_params(char* s, int* a, int* b)
@@ -406,7 +469,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
                     printf("Error: [-s | --adaptor_sequence] option requires an argument.\n");
                     exit(1);
                 }
-                strcpy(adaptor, optarg);
+                strcpy(single_junction_adaptor, optarg);
                 break;
             case 't':
                 if (optarg==NULL) {
@@ -473,11 +536,11 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
 
 /*----------------------------------------------------------------------*
  * Function:   strict_check
- * Purpose:    
- * Parameters: 
+ * Purpose:    Perform the strict decision making on an alignment result
+ * Parameters: result -> alignment result
  * Returns:    None
  *----------------------------------------------------------------------*/
-void strict_check(AlignmentResult* result)
+void strict_check(JunctionAdaptorAlignment* result)
 {
     if (result->total_matches >= strict_double_match) {
         result->accepted = 1;
@@ -488,16 +551,18 @@ void strict_check(AlignmentResult* result)
         result->accepted = 1;
         return;
     }
+    
+    result->accepted = 0;
 }
 
 
 /*----------------------------------------------------------------------*
  * Function:   relaxed_check
- * Purpose:    
- * Parameters: 
+ * Purpose:    Perform the relaxed decision making on an alignment result
+ * Parameters: result -> alignment result
  * Returns:    None
  *----------------------------------------------------------------------*/
-void relaxed_check(AlignmentResult* result)
+void relaxed_check(JunctionAdaptorAlignment* result)
 {
     if (result->total_matches >= relaxed_double_match) {
         result->accepted = 1;
@@ -511,42 +576,115 @@ void relaxed_check(AlignmentResult* result)
 }
 
 /*----------------------------------------------------------------------*
- * Function:   find_transposons
- * Purpose:    
- * Parameters: 
+ * Function:   find_sequence_in_read
+ * Purpose:    Find a sequence within a read, eg. external adaptor
+ * Parameters: read -> read to find sequence in
+ *             sequence -> sequence to look for
+ *             result -> alignment result
  * Returns:    None
  *----------------------------------------------------------------------*/
-void find_transposons(FastQRead* read, AlignmentResult* result)
+void find_sequence_in_read(FastQRead* read, char* sequence, GenericAdaptorAlignment* result)
 {
     int x, p;
-    int t_length = strlen(transposon);
+    int seq_length = strlen(sequence);
+    
+    // Initialise a result structure to store information
+    initialise_generic_adaptor_alignment(result);
+    result->read_size = read->read_size;
+    
+    // Start searching for the sequence... x is the position in the read where we start to compare the sequence
+    for (x=-seq_length+5; x<read->read_size-5; x++) {
+        int score = 0;
+        int read_start = -1;
+        int read_end = -1;
+        int query_start = -1;
+        int query_end = -1;
+        int matches = 0;
+        int mismatches = 0;
+        
+        // Go through each base of sequence, count matches and store start and end of match
+        for (p=0; p<seq_length; p++) {
+            if (((x+p) >= 0) && ((x+p) < read->read_size)) {
+                if (sequence[p] == read->read[x+p]) {
+                    matches++;
+                    if (read_start == -1) {
+                        read_start = x+p;
+                        query_start = p;
+                    } else {
+                        read_end = x+p;
+                        query_end = p;
+                    }
+                } else {
+                    mismatches++;
+                }
+            }
+        }
+        
+        // Score is simply matches for now
+        score = matches;
+        
+        // Is this the best score yet?
+        if (score > result->score) {
+            result->score = score;
+            result->matches = matches;
+            result->mismatches = mismatches;
+            result->position = x;
+            result->read_start = read_start;
+            result->read_end = read_end;
+            result->query_start = query_start;
+            result->query_end = query_end;
+            result->alignment_length = 1 + (query_end - query_start);
+            result->identity = 100.0 * result->matches / result->alignment_length;
+        }
+    }
+    
+    strcpy(result->adaptor, sequence);
+    if ((result->alignment_length > 20) && (result->identity > 90)) {
+        result->accepted = 1;
+    } else {
+        result->accepted = 0;
+    }
+}
+
+
+/*----------------------------------------------------------------------*
+ * Function:   find_junction_adaptors
+ * Purpose:    Find junction adaptors in a read
+ * Parameters: read -> read to find adaptors in
+ *             result -> alignment result
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
+{
+    int x, p;
+    int adaptor_length = strlen(duplicate_junction_adaptor);
 
     // Initialise a result structure to store information
-    initialise_result(result);
+    initialise_junction_adaptor_alignment(result);
     result->read_size = read->read_size;
     
     // Start searching for the transposon... x is the position in the read where we start to compare the transposon
-    for (x=-t_length+5; x<read->read_size-5; x++) {
+    for (x=-adaptor_length+5; x<read->read_size-5; x++) {
         int matches[2] = {0, 0};
         int mismatches[2] = {0, 0};
         int score = 0;
-        int r_start = -1;
-        int r_end = -1;
-        int t_start = -1;
-        int t_end = -1;
+        int read_start = -1;
+        int read_end = -1;
+        int query_start = -1;
+        int query_end = -1;
  
         // Go through each base of transposon, count matches and store start and end of match
         // For interest, we store the 19nt sequence and it's reverse as a part 1 and part 2!
-        for (p=0; p<t_length; p++) {
+        for (p=0; p<adaptor_length; p++) {
             if (((x+p) >= 0) && ((x+p) < read->read_size)) {
-                if (transposon[p] == read->read[x+p]) {
+                if (duplicate_junction_adaptor[p] == read->read[x+p]) {
                     matches[p < 19 ? 0:1]++;
-                    if (r_start == -1) {
-                        r_start = x+p;
-                        t_start = p;
+                    if (read_start == -1) {
+                        read_start = x+p;
+                        query_start = p;
                     } else {
-                        r_end = x+p;
-                        t_end = p;
+                        read_end = x+p;
+                        query_end = p;
                     }
                 } else {
                     mismatches[p < 19 ? 0:1]++;
@@ -565,84 +703,110 @@ void find_transposons(FastQRead* read, AlignmentResult* result)
             result->matches[1] = matches[1];
             result->mismatches[1] = mismatches[1];
             result->position = x;
-            result->read_start = r_start;
-            result->read_end = r_end;
-            result->transposon_start = t_start;
-            result->transposon_end = t_end;
-            result->alignment_length[0] = t_start < 19 ? 19 - t_start : 0;
-            result->alignment_length[1] = t_end >= 19 ? t_end-18 : 0;
+            result->read_start = read_start;
+            result->read_end = read_end;
+            result->query_start = query_start;
+            result->query_end = query_end;
+            result->alignment_length[0] = query_start < 19 ? 19 - query_start : 0;
+            result->alignment_length[1] = query_end >= 19 ? query_end-18 : 0;
             result->total_matches = matches[0] + matches[1];
-            result->total_alignment_length = 1 + (t_end - t_start);
-            result->total_identity = 100.0 * result->total_matches / result->total_alignment_length;
-            result->identity[0] = 100.0 * result->matches[0] / result->alignment_length[0];
-            result->identity[1] = 100.0 * result->matches[1] / result->alignment_length[1];
-            strict_check(result);
+            result->total_alignment_length = 1 + (query_end - query_start);
         }
+    }
+    
+    // If we found a match, do some calculation
+    if (result->score > 0) {
+        result->total_identity = 100.0 * result->total_matches / result->total_alignment_length;
+        result->identity[0] = 100.0 * result->matches[0] / result->alignment_length[0];
+        result->identity[1] = 100.0 * result->matches[1] / result->alignment_length[1];
+        strict_check(result);
     }
 }
 
 /*----------------------------------------------------------------------*
  * Function:   output_alignment
- * Purpose:    
- * Parameters: 
+ * Purpose:    Output an alignment to the log
+ * Parameters: stats -> MPStats structure
+ *             read -> read adaptors were aligned to
+ *             result -> junction adaptor alignment result
+ *             external_adaptor_result -> external adaptor alignment result
  * Returns:    None
  *----------------------------------------------------------------------*/
-void output_alignment(MPStats* stats, FastQRead* read, AlignmentResult* result)
+void output_alignment(MPStats* stats, FastQRead* read, JunctionAdaptorAlignment* result, GenericAdaptorAlignment* external_adaptor_result)
 {
     char s1[MAX_READ_LENGTH];
     char s2[MAX_READ_LENGTH];
     int i;
+    int duplicate_junction_adaptor_length = strlen(duplicate_junction_adaptor);
+    int external_adaptor_length =  strlen(external_adaptor_result->adaptor);
 
-    fprintf(stats->log_fp, "\n    Id: %s\n", read->read_header);
-    fprintf(stats->log_fp, "  Read: %s\n", read->read);    
+    fprintf(stats->log_fp, "\n---------- Read ID: %s ----------\n", read->read_header);
+    fprintf(stats->log_fp, "%s\n", read->read);
 
-    if (result->score < 0) {
-        fprintf(stats->log_fp, "        No alignment\n");
+    if ((result->score < 0) && (external_adaptor_result->score < 17)) {
+        fprintf(stats->log_fp, "No alignment\n");
     } else {
+        
         for (i=0; i<read->read_size; i++) {
-            int p = i - result->position;
-            
             s1[i] = ' ';
             s2[i] = ' ';
-            
-            if ((p >= 0) && (p < strlen(transposon))) {
-                if (transposon[p] == read->read[i]) {
-                    s1[i] = '|';
+        }
+        
+        if (result->score > 0) {
+            for (i=0; i<read->read_size; i++) {
+                int p = i - result->position;
+                
+                if ((p >= 0) && (p < duplicate_junction_adaptor_length)) {
+                    if (duplicate_junction_adaptor[p] == read->read[i]) {
+                        s1[i] = '|';
+                    }
+                    s2[i] = duplicate_junction_adaptor[p];
                 }
-                s2[i] = transposon[p];
-            }                
+            }
+        }
+        
+        if (external_adaptor_result->score >= 17) {
+            for (i=0; i<read->read_size; i++) {
+                int p = i - external_adaptor_result->position;
+                
+                if ((p >= 0) && (p < external_adaptor_length)) {
+                    if (external_adaptor_result->adaptor[p] == read->read[i]) {
+                        s1[i] = '^';
+                    }
+                    s2[i] = external_adaptor_result->adaptor[p];
+                }
+            }
         }
    
         s1[read->read_size] = 0;
         s2[read->read_size] = 0;
         
-        fprintf(stats->log_fp, "        %s\n", s1);
-        fprintf(stats->log_fp, "        %s\n", s2);
+        fprintf(stats->log_fp, "%s\n", s1);
+        fprintf(stats->log_fp, "%s\n", s2);
     }
     
-    fprintf(stats->log_fp, " Match: read base %d to %d, transposon base %d to %d\n", result->read_start, result->read_end, result->transposon_start, result->transposon_end);
-    fprintf(stats->log_fp, 
-            " Score: %d Id %.2f length %d (breakdown %d,%d matches %d,%d mismatches %d,%d lengths %.2f,%.2f identity)\n",
-           result->score, 
-           result->total_identity,
-           result->total_alignment_length,
+    fprintf(stats->log_fp, "Junction adaptor: Read %d-%d Adaptor %d-%d Score %d Id %.1f ", result->read_start, result->read_end, result->query_start, result->query_end, result->score, result->total_identity);
+    fprintf(stats->log_fp, "(Matches %d,%d Mismatches %d,%d Lengths %d,%d Identity %.1f,%.1f)\n",
            result->matches[0], result->matches[1],
            result->mismatches[0], result->mismatches[1],
            result->alignment_length[0], result->alignment_length[1],
            result->identity[0], result->identity[1]);
-    fprintf(stats->log_fp, "Result: %s\n", result->accepted == 1 ? "GOOD ALIGNMENT":"BAD");
+    fprintf(stats->log_fp, "                  JUNCTION ADAPTOR %s\n", result->accepted == 1 ? "GOOD ALIGNMENT":"BAD ALIGNMENT");
+    
+    fprintf(stats->log_fp, "External adaptor: Read %d-%d Adaptor %d-%d Score %d Id %.1f\n", external_adaptor_result->read_start, external_adaptor_result->read_end, external_adaptor_result->query_start, external_adaptor_result->query_end, external_adaptor_result->score, external_adaptor_result->identity);
+    fprintf(stats->log_fp, "                  EXTERNAL ADAPTOR %s\n", external_adaptor_result->accepted == 1 ? "GOOD ALIGNMENT":"BAD ALIGNMENT");
 }
 
 /*----------------------------------------------------------------------*
  * Function:   get_read
- * Purpose:    
- * Parameters: 
+ * Purpose:    Read from a file into a FastQRead structure
+ * Parameters: fp -> file to read from
+ *             read -> structure to read into
  * Returns:    None
  *----------------------------------------------------------------------*/
 int get_read(FILE* fp, FastQRead* read)
 {
     int got_read = 1;
-    
     
     if (!fgets(read->read_header, 1024, fp)) {
         got_read = 0;
@@ -666,15 +830,19 @@ int get_read(FILE* fp, FastQRead* read)
         chomp(read->quality_header);
         chomp(read->qualities);
         read->read_size=strlen(read->read);
-    }    
+        read->trim_at_base = read->read_size;
+        read->trimmed_for_external_adaptor = false;
+        read->trimmed_for_junction_adaptor = false;
+    }
     
     return got_read;
 }
 
 /*----------------------------------------------------------------------*
  * Function:   write_read
- * Purpose:    
- * Parameters: 
+ * Purpose:    Write read structure to file
+ * Parameters: read -> FastQRead to write
+ *             fp -> file to write to
  * Returns:    None
  *----------------------------------------------------------------------*/
 void write_read(FastQRead* read, FILE *fp)
@@ -687,18 +855,17 @@ void write_read(FastQRead* read, FILE *fp)
 
 /*----------------------------------------------------------------------*
  * Function:   decide_category
- * Purpose:    
- * Parameters: 
- * Returns:    None
+ * Purpose:    Decide what category a read pair is
+ * Parameters: read_one -> FastQRead structure for read 1
+ *             result_one -> alignment result for read 1
+ *             read_two -> FastQRead structure for read 2
+ *             result_two -> alignment result for read 22
+ *             stats -> MPStats structure
+ * Returns:    0 for category A, 1 for category B etc.
  *----------------------------------------------------------------------*/
-void decide_category(MPStats* stats, FastQRead* read_one, AlignmentResult* result_one, FastQRead* read_two, AlignmentResult* result_two)
+int decide_category(MPStats* stats, FastQRead* read_one, JunctionAdaptorAlignment* result_one, FastQRead* read_two, JunctionAdaptorAlignment* result_two)
 {
     int category = -1;
-    int trim_one = 0;
-    int trim_two = 0;
-    int l_one;
-    int l_two;
-    int smallest;
     
     if ((result_one->accepted == 1) && (result_two->accepted == 1)) {
         // Category A
@@ -710,15 +877,12 @@ void decide_category(MPStats* stats, FastQRead* read_one, AlignmentResult* resul
         if (use_category_e == 1) {
             relaxed_check(result_one);
             if (result_one->accepted == 1) {
-                read_one->read[result_one->read_start] = 0;
-                read_one->qualities[result_one->read_start] = 0;
+                if (result_one->read_start < read_one->trim_at_base) {
+                    read_one->trim_at_base = result_one->read_start;
+                }
                 stats->count_by_category_relaxed_hit[category]++;
                 category=4;
-            } else {
-                trim_one = 1;
             }
-        } else {
-            trim_one = 1;
         }
     } else if ((result_one->accepted == 1) && (result_two->accepted == 0)) {
         // Category C
@@ -727,42 +891,51 @@ void decide_category(MPStats* stats, FastQRead* read_one, AlignmentResult* resul
         if (use_category_e == 1) {
             relaxed_check(result_two);
             if (result_two->accepted == 1) {
-                read_two->read[result_two->read_start] = 0;
-                read_two->qualities[result_two->read_start] = 0;
+                if (result_two->read_start < read_two->trim_at_base) {
+                    read_two->trim_at_base = result_two->read_start;
+                }
                 stats->count_by_category_relaxed_hit[category]++;
                 category=4;
-            } else {
-                trim_two = 1;
             }
-        } else {
-            trim_two = 1;
         }
     } else {
         // Category D
         category = 3;
-        trim_one = 1;
-        trim_two = 1;
     }
 
-    // Trim ends?
-    if (trim_ends > 0) {
-        if (trim_one) {
-            int new_length = strlen(read_one->read) - trim_ends;
-            read_one->read[new_length] = 0;
-            read_one->qualities[new_length] = 0;
-        }
-        if (trim_two) {
-            int new_length = strlen(read_two->read) - trim_ends;
-            read_two->read[new_length] = 0;
-            read_two->qualities[new_length] = 0;
-        }
+    if ((read_one->trimmed_for_external_adaptor) || (read_two->trimmed_for_external_adaptor)) {
+        stats->count_by_category_external_clipped[category]++;
     }
+    
+    return category;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:   trim_and_write_pair
+ * Purpose:    Trim read and write to output file
+ * Parameters: read_one -> FastQRead structure for read 1
+ *             read_two -> FastQRead structure for read 2
+ *             stats -> MPStats structure
+ *             category = category of pair (0=A, 1=B etc.)
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void trim_and_write_pair(MPStats* stats, int category, FastQRead* read_one, FastQRead* read_two)
+{
+    int l_one;
+    int l_two;
+    int smallest;
+    
+    // Trim reads
+    read_one->read[read_one->trim_at_base] = 0;
+    read_one->qualities[read_one->trim_at_base] = 0;
+    read_two->read[read_two->trim_at_base] = 0;
+    read_two->qualities[read_two->trim_at_base] = 0;
     
     // Keep count
     stats->count_by_category[category]++;
     
     if (stats->log_fp != 0) {
-        fprintf(stats->log_fp, "\n-------------------- Category %c --------------------\n", 'A' + category);   
+        fprintf(stats->log_fp, "\nCategory %c\n\n", 'A' + category);
     }
     
     l_one = strlen(read_one->read);
@@ -787,9 +960,11 @@ void decide_category(MPStats* stats, FastQRead* read_one, AlignmentResult* resul
 }
 
 /*----------------------------------------------------------------------*
- * Function:   process_file
- * Purpose:    
- * Parameters: 
+ * Function:   check_read_ids
+ * Purpose:    Check read 1 and read 2 have same ID
+ * Parameters: read_one -> FastQRead structure for read 1
+ *             read_two -> FastQRead structure for read 2
+ *             stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 void check_read_ids(MPStats* stats, FastQRead* read_one, FastQRead* read_two)
@@ -809,20 +984,13 @@ void check_read_ids(MPStats* stats, FastQRead* read_one, FastQRead* read_two)
             p++;
         }
     }
-    
-    //if (stats->log_fp != 0) {
-    //    char read_id[1024];
-    //    strncpy(read_id, read_one->read_header+1, p-1);
-    //    read_id[p-1] = 0;
-    //    fprintf(stats->log_fp, "==================== %s ====================\n", read_id); 
-    //}
 }
 
 /*----------------------------------------------------------------------*
  * Function:   valid_bases
- * Purpose:
- * Parameters:
- * Returns:    None
+ * Purpose:    Check if string is only A, C, G, T
+ * Parameters: string -> string to check
+ * Returns:    true if only A, C, T, G
  *----------------------------------------------------------------------*/
 boolean valid_bases(char *string)
 {
@@ -839,9 +1007,10 @@ boolean valid_bases(char *string)
 
 /*----------------------------------------------------------------------*
  * Function:   check_valid_bases_and_gc_content
- * Purpose:
- * Parameters:
- * Returns:    None
+ * Purpose:    Check string is only A, C, T and G, plus calculate GC
+ * Parameters: string -> string to check
+ *             gc -> GC return value
+ * Returns:    true if only A, C, T, G
  *----------------------------------------------------------------------*/
 boolean check_valid_bases_and_gc_content(char *string, int* gc)
 {
@@ -863,9 +1032,11 @@ boolean check_valid_bases_and_gc_content(char *string, int* gc)
 #ifdef USE_MULTIPLE_HASHES
 /*----------------------------------------------------------------------*
  * Function:   check_pcr_duplicates
- * Purpose:
- * Parameters:
- * Returns:    None
+ * Purpose:    Calculate kmer signature and check for duplicates
+ * Parameters: read_one -> FastQRead structure for read 1
+ *             read_two -> FastQRead structure for read 2
+ *             stats -> MPStats structure
+ * Returns:    true if duplicate, false otherwise
  *----------------------------------------------------------------------*/
 boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* stats)
 {
@@ -901,6 +1072,11 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
         seq_to_binary_kmer(kmer_string, TOTAL_KMER_SIZE, &kmer);
         Key key = element_get_key(&kmer, TOTAL_KMER_SIZE, &tmp_kmer);
         e = hash_table_find_or_insert(key, &found, kmer_hashes[i]);
+        if (e == NULL) {
+            printf("Error: Hash table not big enough! Try specifying a larger number of reads.")
+            exit(101);
+        }
+        
         if (found) {
             is_duplicate = true;
             e->count++;
@@ -922,9 +1098,11 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
 #else
 /*----------------------------------------------------------------------*
  * Function:   check_pcr_duplicates
- * Purpose:
- * Parameters:
- * Returns:    None
+ * Purpose:    Calculate kmer signature and check for duplicates
+ * Parameters: read_one -> FastQRead structure for read 1
+ *             read_two -> FastQRead structure for read 2
+ *             stats -> MPStats structure
+ * Returns:    true if duplicate, false otherwise
  *----------------------------------------------------------------------*/
 boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* stats)
 {
@@ -964,7 +1142,11 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     seq_to_binary_kmer(kmer_string, TOTAL_KMER_SIZE, &kmer);
     Key key = element_get_key(&kmer, TOTAL_KMER_SIZE, &tmp_kmer);
     e = hash_table_find_or_insert(key, &found, duplicate_hash);
-     
+    if (e == NULL) {
+        printf("Error: Hash table not big enough! Try specifying a larger number of reads.");
+        exit(101);
+    }
+    
     if (found) {
         e->count++;
         is_duplicate = true;
@@ -982,15 +1164,16 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
 #endif
 
 /*----------------------------------------------------------------------*
- * Function:   process_file
- * Purpose:    
- * Parameters: 
+ * Function:   process_files
+ * Purpose:    Main function to process FASTQ files
+ * Parameters: stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 void process_files(MPStats* stats)
 {
     FastQRead reads[2];
-    AlignmentResult alignments[2];
+    JunctionAdaptorAlignment junction_adaptor_alignments[2];
+    GenericAdaptorAlignment external_adaptor_alignments[2];
     int i, j;
     int is_duplicate;
     
@@ -998,8 +1181,17 @@ void process_files(MPStats* stats)
         char duplicates_filename[1024];
 
         stats->log_fp = fopen(stats->log_filename, "w");
+        if (!stats->log_fp) {
+            printf("Error: Can't open %s\n", stats->log_filename);
+            exit(102);
+        }
+        
         sprintf(duplicates_filename, "%s.pcr.txt", stats->log_filename);
         stats->duplicates_fp = fopen(duplicates_filename, "w");
+        if (!stats->duplicates_fp) {
+            printf("Error: Can't open %s\n", duplicates_filename);
+            exit(102);
+        }
     }
     
     
@@ -1031,6 +1223,8 @@ void process_files(MPStats* stats)
     while (!feof(stats->input_fp[0])) {
         // Go next pair of reads
         int n_reads = 0;
+        int category = -1;
+        
         for (i=0; i<2; i++) {
             if (get_read(stats->input_fp[i], &reads[i]) == 1) {
                 n_reads++;
@@ -1054,25 +1248,60 @@ void process_files(MPStats* stats)
             
             if ((remove_duplicates == 0) ||
                 ((remove_duplicates == 1) && (is_duplicate == 0))) {
-            
+
+                if (stats->log_fp != 0) {
+                    fprintf(stats->log_fp, "==================== New read pair ====================\n");
+                }
+                
                 for (i=0; i<2; i++) {
-                    // Find transposons
-                    find_transposons(&reads[i], &alignments[i]);
+                    // Find junction adaptor
+                    find_junction_adaptors(&reads[i], &junction_adaptor_alignments[i]);
+
+                    // Look for external adaptor
+                    find_sequence_in_read(&reads[i], external_adaptors[i], &external_adaptor_alignments[i]);
 
                     // Display log information
                     if (stats->log_fp != 0) {
-                        output_alignment(stats, &reads[i], &alignments[i]);                        
+                        output_alignment(stats, &reads[i], &junction_adaptor_alignments[i], &external_adaptor_alignments[i]);
                     }
                                     
-                    // If adaptor found...
-                    if (alignments[i].accepted == 1) {
+                    // If junction adaptor found...
+                    if (junction_adaptor_alignments[i].accepted == 1) {
                         // Count
                         stats->count_adaptor_found[i]++;
+                        
                         // Trim
-                        reads[i].read[alignments[i].read_start] = 0;
-                        reads[i].qualities[alignments[i].read_start] = 0;
-                        // Check for too short
-                        if (alignments[i].read_start < (minimum_read_size-1)) {
+                        reads[i].trim_at_base = junction_adaptor_alignments[i].read_start;
+                        reads[i].trimmed_for_junction_adaptor = true;
+                    } else {
+                        if (trim_ends > 0) {
+                            reads[i].trim_at_base = reads[i].read_size - trim_ends;
+                        }
+                    }
+
+                    // If external adaptor found...?
+                    if (external_adaptor_alignments[i].accepted == 1) {
+                        if (external_adaptor_alignments[i].read_start < reads[i].trim_at_base) {
+                            reads[i].trim_at_base = external_adaptor_alignments[i].read_start;
+                            reads[i].trimmed_for_external_adaptor = true;
+                            if (reads[i].trimmed_for_junction_adaptor) {
+                                if (stats->log_fp != 0) {
+                                    fprintf(stats->log_fp, "                  EXTERNAL ADAPTOR BEFORE JUNCTION ADAPTOR\n");
+                                }
+                            }
+                        }
+                        
+                        if (junction_adaptor_alignments[i].accepted == 1) {
+                            stats->count_adaptor_and_external_found[i]++;
+                        } else {
+                            stats->count_external_only_found[i]++;
+                        }
+                    
+                    }
+                    
+                    if (junction_adaptor_alignments[i].accepted == 1) {
+                        // Should not be -1
+                        if (reads[i].trim_at_base < (minimum_read_size-1)) {
                             stats->count_too_short[i]++;
                         } else {
                             stats->count_long_enough[i]++;
@@ -1080,10 +1309,14 @@ void process_files(MPStats* stats)
                     } else {
                         stats->count_no_adaptor[i]++;
                     }
+                    
                 }
                 
-                // Decide category (A, B, C, D)
-                decide_category(stats, &reads[0], &alignments[0], &reads[1], &alignments[1]);
+                // Decide category (A, B, C, D, E)
+                category = decide_category(stats, &reads[0], &junction_adaptor_alignments[0], &reads[1], &junction_adaptor_alignments[1]);
+                
+                // Trim and write reads
+                trim_and_write_pair(stats, category, &reads[0], &reads[1]);
             } else {
                 stats->duplicates_not_written++;
             }
@@ -1116,25 +1349,25 @@ void process_files(MPStats* stats)
 
 /*----------------------------------------------------------------------*
  * Function:   process_adaptor
- * Purpose:    
- * Parameters: 
+ * Purpose:    Make double junction adaptor from adaptor and reverse
+ * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
 void process_adaptor(void)
 {
     char reverse[1024];
 
-    reverse_compliment(adaptor, reverse);
-    strcpy(transposon, adaptor);
-    strcat(transposon, reverse);
+    reverse_compliment(single_junction_adaptor, reverse);
+    strcpy(duplicate_junction_adaptor, single_junction_adaptor);
+    strcat(duplicate_junction_adaptor, reverse);
 
-    printf("Adaptor: %s\n\n", transposon);
+    printf("Adaptor: %s\n\n", duplicate_junction_adaptor);
 }
 
 /*----------------------------------------------------------------------*
  * Function:   calculate_stats
- * Purpose:    
- * Parameters: 
+ * Purpose:    Calculate percentages for stats
+ * Parameters: stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 void calculate_stats(MPStats* stats)
@@ -1172,6 +1405,18 @@ void calculate_stats(MPStats* stats)
         } else {
             stats->percent_too_short[i] = 0;
         }
+        
+        if (stats->count_adaptor_and_external_found[i] > 0) {
+            stats->percent_adaptor_and_external_found[i] = (100.0 * (double)stats->count_adaptor_and_external_found[i]) / (double)stats->num_read_pairs;
+        } else {
+            stats->percent_adaptor_and_external_found[i] = 0;
+        }
+
+        if (stats->count_external_only_found[i] > 0) {
+            stats->percent_external_only_found[i] = (100.0 * (double)stats->count_external_only_found[i]) / (double)stats->num_read_pairs;
+        } else {
+            stats->percent_external_only_found[i] = 0;
+        }
     }
     
     stats->total_too_short = 0;
@@ -1202,6 +1447,12 @@ void calculate_stats(MPStats* stats)
             stats->percent_by_category_relaxed_hit[i] = 0;
         }
         
+        if (stats->count_by_category_external_clipped[i] > 0) {
+            stats->percent_by_category_external_clipped[i] = (100.0 * (double)stats->count_by_category_external_clipped[i]) / (double)stats->num_read_pairs;
+        } else {
+            stats->percent_by_category_external_clipped[i] = 0;
+        }
+        
         stats->total_too_short += stats->count_by_category_too_short[i];
         stats->total_long_enough += stats->count_by_category_long_enough[i];
     }
@@ -1226,8 +1477,8 @@ void calculate_stats(MPStats* stats)
 
 /*----------------------------------------------------------------------*
  * Function:   report_stats
- * Purpose:    
- * Parameters: 
+ * Purpose:    Output report of stats
+ * Parameters: stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 void report_stats(MPStats* stats)
@@ -1249,24 +1500,31 @@ void report_stats(MPStats* stats)
     printf("Number of pairs containing N: %ld\t%.2f %%\n", stats->pairs_containing_n, stats->percent_pairs_containing_n);
     
     for (i=0; i<2; i++) {
+        printf("\n");
         printf("   R%d Num reads with adaptor: %d\t%.2f %%\n", i+1, stats->count_adaptor_found[i], stats->percent_adaptor_found[i]);
+        printf("   R%d Num with external also: %d\t%.2f %%\n", i+1, stats->count_adaptor_and_external_found[i], stats->percent_adaptor_and_external_found[i]);
         printf("       R%d long adaptor reads: %d\t%.2f %%\n", i+1, stats->count_long_enough[i], stats->percent_long_enough[i]);
         printf("          R%d reads too short: %d\t%.2f %%\n", i+1, stats->count_too_short[i], stats->percent_too_short[i]);
         printf("     R%d Num reads no adaptor: %d\t%.2f %%\n", i+1, stats->count_no_adaptor[i], stats->percent_no_adaptor[i]);
+        printf("  R%d no adaptor but external: %d\t%.2f %%\n", i+1, stats->count_external_only_found[i], stats->percent_external_only_found[i]);
     }
         
     for (i=0; i<num_categories; i++) {
+        printf("\n");
         printf("   Total pairs in category %c: %d\t%.2f %%\n", 'A'+i, stats->count_by_category[i], stats->percent_by_category[i]);
         printf("         %c pairs long enough: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_long_enough[i], stats->percent_by_category_long_enough[i]);
         printf("           %c pairs too short: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_too_short[i], stats->percent_by_category_too_short[i]);
+        printf("%c external clip in 1 or both: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_external_clipped[i], stats->percent_by_category_external_clipped[i]);
     }
  
+    printf("\n");
     printf("          Total usable pairs: %d\t%.2f %%\n", stats->total_usable, stats->percent_usable);
     printf("             All long enough: %d\t%.2f %%\n", stats->total_long_enough, stats->percent_total_long_enough);
     printf("    All categories too short: %d\t%.2f %%\n", stats->total_too_short, stats->percent_total_too_short);
     printf("      Duplicates not written: %d\t%.2f %%\n", stats->duplicates_not_written, stats->percent_duplicates_not_written);
 
     if (use_category_e == 1) {
+        printf("\n");
         printf("         Category B became E: %d\t%.2f %%\n", stats->count_by_category_relaxed_hit[1], stats->percent_by_category_relaxed_hit[1]);
         printf("         Category C became E: %d\t%.2f %%\n", stats->count_by_category_relaxed_hit[2], stats->percent_by_category_relaxed_hit[2]);
     }
@@ -1277,9 +1535,9 @@ void report_stats(MPStats* stats)
 }
 
 /*----------------------------------------------------------------------*
- * Function:   report_stats
- * Purpose:    
- * Parameters: 
+ * Function:   output_histograms
+ * Purpose:    Output historgrams for read lengths, GC etc.
+ * Parameters: stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 void output_histograms(MPStats* stats)
@@ -1342,8 +1600,8 @@ void output_histograms(MPStats* stats)
 
 /*----------------------------------------------------------------------*
  * Function:   calculate_pcr_duplicate_stats
- * Purpose:
- * Parameters:
+ * Purpose:    Calculate PCR duplication statistics
+ * Parameters: stats -> MPStats structure
  * Returns:    None
  *----------------------------------------------------------------------*/
 #ifdef USE_MULTIPLE_HASHES
@@ -1437,8 +1695,8 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
 
 /*----------------------------------------------------------------------*
  * Function:   create_hash_table
- * Purpose:
- * Parameters:
+ * Purpose:    Create hash table for storing PCR duplicates
+ * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
 void create_hash_table(void)
@@ -1476,6 +1734,12 @@ void create_hash_table(void)
     printf("  Memory required: %ld MB\n\n", memory/(1024*1024));
     
     duplicate_hash = hash_table_new(n, b, 25, TOTAL_KMER_SIZE);
+    
+    if (duplicate_hash == NULL) {
+        printf("Error: No memory for hash table\n");
+        exit(101);
+    }
+    
     hash_table_print_stats(duplicate_hash);
 #endif
 }
@@ -1487,6 +1751,10 @@ void create_hash_table(void)
 int main(int argc, char* argv[])
 {
     MPStats stats;
+    time_t start, end;
+    double seconds;
+    
+    time(&start);
     
     printf("\nNextClip v%s\n\n", NEXTCLIP_VERSION);
     
@@ -1501,7 +1769,10 @@ int main(int argc, char* argv[])
     report_stats(&stats);
     output_histograms(&stats);
     
-    printf("\nDone.\n");
+    time(&end);
+    seconds = difftime(end, start);
+
+    printf("\nDone. Completed in %.0f seconds.\n", seconds);
     
     return 0;
 }
