@@ -16,9 +16,11 @@ readsdir=${libdir}/reads
 graphsdir=${libdir}/graphs
 analysisdir=${libdir}/analysis
 
-echo "Plotting duplication rate graph"
 inputfile=${readsdir}/${lib}_duplicates.txt
 outputfile=${graphsdir}/${lib}_duplicates.pdf
+echo "Plotting duplication rate graph"
+echo " Input: ${inputfile}"
+echo "Output: ${outputfile}"
 
 if [ -f ${inputfile} ] ; then
     Rscript ${scriptdir}/nextclip_plot_duplication.R ${inputfile} ${outputfile}
@@ -28,9 +30,11 @@ fi
 
 for read in 1 2
 do
-    echo "Plotting GC content for read ${read}"
     inputfile=${readsdir}/${lib}_R${read}_gc.txt
     outputfile=${graphsdir}/${lib}_R${read}_gc.pdf
+    echo "Plotting GC content for read ${read}"
+    echo " Input: ${inputfile}"
+    echo "Output: ${outputfile}"
 
     if [ -f ${inputfile} ] ; then
         Rscript ${scriptdir}/nextclip_plot_gc.R ${inputfile} ${outputfile}
@@ -41,9 +45,11 @@ done
 
 for type in A B C D
 do
-    echo "Plotting cumulative pair lengths for category ${type}"
     inputfile=${readsdir}/${lib}_${type}_pair_hist.txt
     outputfile=${graphsdir}/${lib}_cumulative_pairs_${type}.pdf
+    echo "Plotting cumulative pair lengths for category ${type}"
+    echo " Input: ${inputfile}"
+    echo "Output: ${outputfile}"
 
     if [ -f ${inputfile} ] ; then
         Rscript ${scriptdir}/nextclip_plot_pair_lengths.R ${inputfile} ${outputfile}
@@ -53,9 +59,11 @@ do
 
     for read in 1 2
     do
-        echo "Plotting lengths for category ${type} read ${read}"
         inputfile=${readsdir}/${lib}_${type}_R${read}_hist.txt
         outputfile=${graphsdir}/${lib}_lengths_${type}_R${read}.pdf
+        echo "Plotting lengths for category ${type} read ${read}"
+        echo " Input: ${inputfile}"
+        echo "Output: ${outputfile}"
 
         if [ -f ${inputfile} ] ; then
             Rscript ${scriptdir}/nextclip_plot_lengths.R ${inputfile} ${outputfile}
@@ -66,9 +74,11 @@ do
 
     for kind in mp pe tandem
     do
-        echo "Plotting insert size lengths for category ${type} kind ${kind}"
         inputfile=${analysisdir}/${lib}_${type}_${kind}.txt
         outputfile=${graphsdir}/${lib}_${kind}_${type}.pdf
+        echo "Plotting insert size lengths for category ${type} kind ${kind}"
+        echo " Input: ${inputfile}"
+        echo "Output: ${outputfile}"
 
         if [ -f ${inputfile} ] ; then
             Rscript ${scriptdir}/nextclip_plot_inserts.R ${inputfile} ${outputfile}

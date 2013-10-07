@@ -155,26 +155,35 @@ function get_main_stats
     number_of_pairs=`grep 'Number of read pairs' ${nextclip_output} | perl -nae '$_ =~ /Number of read pairs: (\d+)/ ; print $1'`
 
     r1_with_adaptor=`grep 'R1 Num reads with adaptor' ${nextclip_output} | perl -nae '$_ =~ /R1 Num reads with adaptor: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    r1_with_adaptor_and_external=`grep 'R1 Num with external also' ${nextclip_output} | perl -nae '$_ =~ /R1 Num with external also: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r1_with_adaptor_long=`grep 'R1 long adaptor reads' ${nextclip_output} | perl -nae '$_ =~ /R1 long adaptor reads: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r1_with_adaptor_short=`grep 'R1 reads too short' ${nextclip_output} | perl -nae '$_ =~ /R1 reads too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r1_without_adaptor=`grep 'R1 Num reads no adaptor' ${nextclip_output} | perl -nae '$_ =~ /R1 Num reads no adaptor: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    r1_without_adaptor_but_external=`grep 'R1 no adaptor but external' ${nextclip_output} | perl -nae '$_ =~ /R1 no adaptor but external: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+
     r2_with_adaptor=`grep 'R2 Num reads with adaptor' ${nextclip_output} | perl -nae '$_ =~ /R2 Num reads with adaptor: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    r2_with_adaptor_and_external=`grep 'R2 Num with external also' ${nextclip_output} | perl -nae '$_ =~ /R2 Num with external also: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r2_with_adaptor_long=`grep 'R2 long adaptor reads' ${nextclip_output} | perl -nae '$_ =~ /R2 long adaptor reads: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r2_with_adaptor_short=`grep 'R2 reads too short' ${nextclip_output} | perl -nae '$_ =~ /R2 reads too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     r2_without_adaptor=`grep 'R2 Num reads no adaptor' ${nextclip_output} | perl -nae '$_ =~ /R2 Num reads no adaptor: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    r2_without_adaptor_but_external=`grep 'R2 no adaptor but external' ${nextclip_output} | perl -nae '$_ =~ /R2 no adaptor but external: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
 
     cat_a_total=`grep 'Total pairs in category A' ${nextclip_output} | perl -nae '$_ =~ /Total pairs in category A: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_a_long=`grep 'A pairs long enough' ${nextclip_output} | perl -nae '$_ =~ /A pairs long enough: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_a_short=`grep 'A pairs too short' ${nextclip_output} | perl -nae '$_ =~ /A pairs too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    cat_a_external=`grep 'A external clip in 1 or both' ${nextclip_output} | perl -nae '$_ =~ /A external clip in 1 or both: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_b_total=`grep 'Total pairs in category B' ${nextclip_output} | perl -nae '$_ =~ /Total pairs in category B: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_b_long=`grep 'B pairs long enough' ${nextclip_output} | perl -nae '$_ =~ /B pairs long enough: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_b_short=`grep 'B pairs too short' ${nextclip_output} | perl -nae '$_ =~ /B pairs too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    cat_b_external=`grep 'B external clip in 1 or both' ${nextclip_output} | perl -nae '$_ =~ /B external clip in 1 or both: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_c_total=`grep 'Total pairs in category C' ${nextclip_output} | perl -nae '$_ =~ /Total pairs in category C: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_c_long=`grep 'C pairs long enough' ${nextclip_output} | perl -nae '$_ =~ /C pairs long enough: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_c_short=`grep 'C pairs too short' ${nextclip_output} | perl -nae '$_ =~ /C pairs too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    cat_c_external=`grep 'C external clip in 1 or both' ${nextclip_output} | perl -nae '$_ =~ /C external clip in 1 or both: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_d_total=`grep 'Total pairs in category D' ${nextclip_output} | perl -nae '$_ =~ /Total pairs in category D: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_d_long=`grep 'D pairs long enough' ${nextclip_output} | perl -nae '$_ =~ /D pairs long enough: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     cat_d_short=`grep 'D pairs too short' ${nextclip_output} | perl -nae '$_ =~ /D pairs too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
+    cat_d_external=`grep 'D external clip in 1 or both' ${nextclip_output} | perl -nae '$_ =~ /D external clip in 1 or both: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
 
     all_too_short=`grep 'All categories too short' ${nextclip_output} | perl -nae '$_ =~ /All categories too short: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
     all_long_enough=`grep 'All long enough' ${nextclip_output} | perl -nae '$_ =~ /All long enough: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
@@ -185,6 +194,236 @@ function get_main_stats
     number_of_pairs_containing_n=`grep 'Number of pairs containing N' ${nextclip_output} | perl -nae '$_ =~ /Number of pairs containing N: (\d+)\t(\S+)/ ; print $1, " (", $2, "\\\%)"'`
 
     gc_content=`grep 'Overall GC content' ${nextclip_output} | perl -nae '$_ =~ /Overall GC content: (\S+)/ ; print $1, , "\\\%"'`
+}
+
+# ----------------------------------------------------------------------
+# Function: write_overall_section
+# Purpose:  Output overall stats
+# ----------------------------------------------------------------------
+function write_overall_section
+{
+    echo "\\subsection*{Overall}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{c c c}" >> ${latex_file}
+    echo "{\bf R1} & & {\bf R2} \\\\" >> ${latex_file}
+    echo "${number_of_pairs} & Number of reads & ${number_of_pairs} \\\\" >> ${latex_file}
+    echo "${r1_with_adaptor} & With junction adaptor & ${r2_with_adaptor} \\\\" >> ${latex_file}
+    echo "${r1_with_adaptor_long} & of which long enough ($\ge$ ${minimum_read_size}) & ${r2_with_adaptor_long} \\\\" >> ${latex_file}
+    echo "${r1_with_adaptor_short} & and too short ($<$ ${minimum_read_size}) & ${r2_with_adaptor_short} \\\\" >> ${latex_file}
+    echo "${r1_without_adaptor} & Without junction adaptor & ${r2_without_adaptor} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+    echo "\\vspace{-5mm}" >> ${latex_file}
+
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c c c}" >> ${latex_file}
+    echo "{\bf Category} & {\bf Number of pairs} & {\bf Too short ($<$ ${minimum_read_size})} & {\bf Long enough ($\ge$ ${minimum_read_size})} \\\\" >> ${latex_file}
+    echo "Adaptor in R1 and R2 (A) & ${cat_a_total} & ${cat_a_short} & ${cat_a_long} \\\\" >> ${latex_file}
+    echo "Adaptor in R2 only (B) & ${cat_b_total} & ${cat_b_short} & ${cat_b_long} \\\\" >> ${latex_file}
+    echo "Adaptor in R1 only (C) & ${cat_c_total} & ${cat_c_short} & ${cat_c_long} \\\\" >> ${latex_file}
+    echo "Adaptor in neither (D) & ${cat_d_total} & ${cat_d_short} & ${cat_d_long} \\\\" >> ${latex_file}
+    echo "All categories & ${number_of_pairs} (100\%) & ${all_too_short} & ${all_long_enough} \\\\" >> ${latex_file}
+    echo "Total usable (A,B,C) & & & ${total_usable} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_gc_content_section
+# Purpose:  Output GC stats
+# ----------------------------------------------------------------------
+function write_gc_content_section
+{
+    echo "\\subsection*{GC content}" >> ${latex_file};
+
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c}" >> ${latex_file}
+    echo "Overall GC content & ${gc_content} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{figure}[h!]" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\begin{subfigure}{.33\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_R1_gc.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize R1}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.33\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_R2_gc.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize R2}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\end{figure}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_shortest_pair_section
+# Purpose:  Output shortest pair stats
+# ----------------------------------------------------------------------
+function write_shortest_pair_section
+{
+    echo "\\subsection*{Shortest pair length}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{figure}[h!]" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_A.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category A pairs}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_B.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category B pairs}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_C.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category C pairs}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\end{figure}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_clipped_read_length_section
+# Purpose:  Output clipped read length stats
+# ----------------------------------------------------------------------
+function write_clipped_read_length_section
+{
+    echo "\\subsection*{Clipped read lengths}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{figure}[h!]" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_A_R1.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category A R1 lengths}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_A_R2.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category A R2 lengths}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_B_R2.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category B R2 lengths}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_C_R1.pdf}" >> ${latex_file}
+    echo "\\caption*{\\footnotesize Category C R1 lengths}" >> ${latex_file}
+    echo "\\end{subfigure}" >> ${latex_file}
+    echo "\\end{figure}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_duplication_section
+# Purpose:  Output PCR duplication stats
+# ----------------------------------------------------------------------
+function write_duplication_section
+{
+    echo "\\subsection*{Duplication}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c}" >> ${latex_file}
+    echo "Number of read pairs in library & ${number_of_pairs} \\\\" >> ${latex_file}
+    echo "PCR duplicates & ${number_of_duplicates} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+
+    echo "\\vspace{-5mm}" >> ${latex_file}
+    echo "\\begin{figure}[h!]" >> ${latex_file}
+    echo "\\centering" >> ${latex_file}
+    echo "\\includegraphics[width=.4\linewidth]{${librarydir}/graphs/${libname}_duplicates.pdf}" >> ${latex_file}
+    echo "\\end{figure}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_external_adaptor_section
+# Purpose:  Output external adaptor stats
+# ----------------------------------------------------------------------
+function write_external_adaptor_section
+{
+    echo "\\subsection*{External adaptor}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{c c c}" >> ${latex_file}
+    echo "{\bf R1} & & {\bf R2} \\\\" >> ${latex_file}
+    echo "${number_of_pairs} & Number of reads & ${number_of_pairs} \\\\" >> ${latex_file}
+    echo "${r1_with_adaptor_and_external} & With junction adaptor and external adaptor & ${r2_with_adaptor_and_external} \\\\" >> ${latex_file}
+    echo "${r1_without_adaptor_but_external} & Without junction adaptor, but with external adaptor & ${r2_without_adaptor_but_external} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+    echo "\\vspace{-5mm}" >> ${latex_file}
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c}" >> ${latex_file}
+    echo "Category A pairs also trimmed for external adaptor & ${cat_a_external} \\\\" >> ${latex_file}
+    echo "Category B pairs also trimmed for external adaptor & ${cat_b_external} \\\\" >> ${latex_file}
+    echo "Category C pairs also trimmed for external adaptor & ${cat_c_external} \\\\" >> ${latex_file}
+    echo "Category D pairs also trimmed for external adaptor & ${cat_d_external} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_ambiguous_bases_section
+# Purpose:  Output ambiguous base stats
+# ----------------------------------------------------------------------
+function write_ambiguous_bases_section
+{
+    echo "\\subsection*{Ambiguous bases}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c}" >> ${latex_file}
+    echo "Number of pairs containing Ns & ${number_of_pairs_containing_n} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
+}
+
+# ----------------------------------------------------------------------
+# Function: write_notes_section
+# Purpose:  Output notes
+# ----------------------------------------------------------------------
+function write_notes_section
+{
+    echo "\\subsection*{Notes}" >> ${latex_file};
+    echo "\\vspace{-3mm}" >> ${latex_file}
+    echo "\\begin{table}[h!]" >> ${latex_file}
+    echo "{\\footnotesize" >> ${latex_file}
+    echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
+    echo "\\begin{tabular}{l c}" >> ${latex_file}
+    echo "Minimum contig size for alignment to reference & ${ref_min} \\\\" >> ${latex_file}
+    echo "Maximum allowed MP insert & ${mp_limit} \\\\" >> ${latex_file}
+    echo "Maximum allowed PE insert & ${pe_limit} \\\\" >> ${latex_file}
+    echo "Maximum allowed tandem insert & ${tandem_limit} \\\\" >> ${latex_file}
+    echo "\\end{tabular}" >> ${latex_file}
+    echo "}" >> ${latex_file}
+    echo "\\end{table}" >> ${latex_file}
 }
 
 # ----------------------------------------------------------------------
@@ -223,43 +462,11 @@ output_latex_header
 
 echo "{\\section*{\large{${title}}}" >> ${latex_file}
 
-echo "\\subsection*{Overall}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{c c c}" >> ${latex_file}
-echo "{\bf R1} & & {\bf R2} \\\\" >> ${latex_file}
-echo "${number_of_pairs} & Number of reads & ${number_of_pairs} \\\\" >> ${latex_file}
-echo "${r1_with_adaptor} & With adaptor & ${r2_with_adaptor} \\\\" >> ${latex_file}
-echo "${r1_with_adaptor_long} & of which long enough ($\ge$ ${minimum_read_size}) & ${r2_with_adaptor_long} \\\\" >> ${latex_file}
-echo "${r1_with_adaptor_short} & and too short ($<$ ${minimum_read_size}) & ${r2_with_adaptor_short} \\\\" >> ${latex_file}
-echo "${r1_without_adaptor} & Without adaptor & ${r2_without_adaptor} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
-echo "\\vspace{-5mm}" >> ${latex_file}
-
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{l c c c}" >> ${latex_file}
-echo "{\bf Category} & {\bf Number of pairs} & {\bf Too short ($<$ ${minimum_read_size})} & {\bf Long enough ($\ge$ ${minimum_read_size})} \\\\" >> ${latex_file}
-echo "Adaptor in R1 and R2 (A) & ${cat_a_total} & ${cat_a_short} & ${cat_a_long} \\\\" >> ${latex_file}
-echo "Adaptor in R2 only (B) & ${cat_b_total} & ${cat_b_short} & ${cat_b_long} \\\\" >> ${latex_file}
-echo "Adaptor in R1 only (C) & ${cat_c_total} & ${cat_c_short} & ${cat_c_long} \\\\" >> ${latex_file}
-echo "Adaptor in neither (D) & ${cat_d_total} & ${cat_d_short} & ${cat_d_long} \\\\" >> ${latex_file}
-echo "All categories & ${number_of_pairs} (100\%) & ${all_too_short} & ${all_long_enough} \\\\" >> ${latex_file}
-echo "Total usable (A,B,C) & & & ${total_usable} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
+write_overall_section
 
 echo "\\subsection*{Fragments with junction adaptor in R1 and R2 (A)}" >> ${latex_file};
 echo "\\vspace{-3mm}" >> ${latex_file}
 output_category_report ${librarydir}/logs/parse_A_lsf.txt A
-
 echo "\\subsection*{Fragments with junction adaptor in R2 only (B)}" >> ${latex_file};
 echo "\\vspace{-3mm}" >> ${latex_file}
 output_category_report ${librarydir}/logs/parse_B_lsf.txt B
@@ -269,128 +476,19 @@ echo "\\clearpage" >> ${latex_file}
 echo "\\subsection*{Fragments with junction adaptor in R1 only (C)}" >> ${latex_file};
 echo "\\vspace{-3mm}" >> ${latex_file}
 output_category_report ${librarydir}/logs/parse_C_lsf.txt C
-
 echo "\\subsection*{Fragments where neither read contain the junction adaptor (D)}" >> ${latex_file};
 echo "\\vspace{-3mm}" >> ${latex_file}
 output_category_report ${librarydir}/logs/parse_D_lsf.txt D
 
-echo "\\subsection*{GC content}" >> ${latex_file};
-
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{l c}" >> ${latex_file}
-echo "Overall GC content & ${gc_content} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
-
-echo "\\vspace{-3mm}" >> ${latex_file}
-echo "\\begin{figure}[h!]" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\begin{subfigure}{.33\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_R1_gc.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize R1}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.33\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_R2_gc.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize R2}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\end{figure}" >> ${latex_file}
+write_gc_content_section
 
 echo "\\clearpage" >> ${latex_file}
 
-echo "\\subsection*{Shortest pair length}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-echo "\\begin{figure}[h!]" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_A.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category A pairs}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_B.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category B pairs}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_cumulative_pairs_C.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category C pairs}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\end{figure}" >> ${latex_file}
-
-echo "\\subsection*{Clipped read lengths}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-echo "\\begin{figure}[h!]" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_A_R1.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category A R1 lengths}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_A_R2.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category A R2 lengths}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_B_R2.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category B R2 lengths}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\begin{subfigure}{.22\textwidth}" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.9\linewidth]{${librarydir}/graphs/${libname}_lengths_C_R1.pdf}" >> ${latex_file}
-echo "\\caption*{\\footnotesize Category C R1 lengths}" >> ${latex_file}
-echo "\\end{subfigure}" >> ${latex_file}
-echo "\\end{figure}" >> ${latex_file}
-
-echo "\\subsection*{Duplication}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{l c}" >> ${latex_file}
-echo "Number of read pairs in library & ${number_of_pairs} \\\\" >> ${latex_file}
-echo "PCR duplicates & ${number_of_duplicates} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
-
-echo "\\vspace{-5mm}" >> ${latex_file}
-echo "\\begin{figure}[h!]" >> ${latex_file}
-echo "\\centering" >> ${latex_file}
-echo "\\includegraphics[width=.4\linewidth]{${librarydir}/graphs/${libname}_duplicates.pdf}" >> ${latex_file}
-echo "\\end{figure}" >> ${latex_file}
-
-echo "\\subsection*{Ambiguous bases}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{l c}" >> ${latex_file}
-echo "Number of pairs containing Ns & ${number_of_pairs_containing_n} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
-
-echo "\\subsection*{Notes}" >> ${latex_file};
-echo "\\vspace{-3mm}" >> ${latex_file}
-echo "\\begin{table}[h!]" >> ${latex_file}
-echo "{\\footnotesize" >> ${latex_file}
-echo "\\fontsize{9pt}{11pt}\selectfont" >> ${latex_file}
-echo "\\begin{tabular}{l c}" >> ${latex_file}
-echo "Minimum contig size for alignment to reference & ${ref_min} \\\\" >> ${latex_file}
-echo "Maximum allowed MP insert & ${mp_limit} \\\\" >> ${latex_file}
-echo "Maximum allowed PE insert & ${pe_limit} \\\\" >> ${latex_file}
-echo "Maximum allowed tandem insert & ${tandem_limit} \\\\" >> ${latex_file}
-echo "\\end{tabular}" >> ${latex_file}
-echo "}" >> ${latex_file}
-echo "\\end{table}" >> ${latex_file}
-
+write_shortest_pair_section
+write_clipped_read_length_section
+write_duplication_section
+write_ambiguous_bases_section
+write_external_adaptor_section
+write_notes_section
 output_latex_footer
 make_pdf
