@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "0.6"
+#define NEXTCLIP_VERSION "0.7"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
@@ -92,6 +92,7 @@ typedef struct {
     char output_prefix[MAX_PATH_LENGTH];
     char output_filenames[NUMBER_OF_CATEGORIES][MAX_PATH_LENGTH];
     char log_filename[MAX_PATH_LENGTH];
+    char duplicates_log_filename[MAX_PATH_LENGTH];
     int num_read_pairs;
     int count_adaptor_found[2];
     int count_adaptor_and_external_found[2];
@@ -233,6 +234,7 @@ void initialise_stats(MPStats* stats)
 
     stats->read_length = 0;
     stats->log_filename[0] = 0;
+    stats->duplicates_log_filename[0] = 0;
     stats->output_prefix[0] = 0;
     stats->log_fp = 0;
     stats->duplicates_fp = 0;
@@ -329,14 +331,15 @@ void usage(void)
            "\nSyntax: nextclip [-r | -p] [-i r1.fastq] [-j r2.fastq]\n" \
            "\nOptions:\n" \
            "    [-d | --remove_duplicates] Remove PCR duplicates\n"
-           "    [-e | --category_e] Use category E\n"
+           "    [-e | --use_category_e] Use category E\n"
            "    [-h | --help] This help screen\n" \
            "    [-i | --input_one] Input FASTQ R1 file\n" \
            "    [-j | --input_two] Input FASTQ R2 file\n" \
            "    [-l | --log] Log filename\n" \
-           "    [-m | --min_length] Minimum usable read length\n" \
+           "    [-m | --min_length] Minimum usable read length (default 25)\n" \
            "    [-n | --number_of_reads] Approximate number of reads (default 20,000,000)\n" \
            "    [-o | --output_prefix] Prefix for output files\n" \
+           "    [-q | --duplicates_log] PCR duplicates log filename\n" \
            "    [-t | --trim_ends] Trim ends of non-matching category B and C reads by amount (default 19)\n" \
            "    [-x | --strict_match] Strict alignment matches (default '34,18')\n" \
            "    [-y | --relaxed_match] Relaxed alignment matches (default '32,17')\n" \
@@ -394,6 +397,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         {"min_length", required_argument, NULL, 'm'},
         {"number_of_reads", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
+        {"duplicates_log", required_argument, NULL, 'q'},
         {"adaptor_sequence", required_argument, NULL, 's'},
         {"trim_ends", required_argument, NULL, 't'},
         {"strict_match", required_argument, NULL, 'x'},
@@ -409,7 +413,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:s:t:x:y:z:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:q:s:t:x:y:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case 'd':
@@ -461,8 +465,12 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
                 }
                 strcpy(stats->output_prefix, optarg);
                 break;                
-            case 'p':
-                use_category_e = 1;
+            case 'q':
+                if (optarg==NULL) {
+                    printf("Error: [-q | --duplicates_log] option requires an argument.\n");
+                    exit(1);
+                }
+                strcpy(stats->duplicates_log_filename, optarg);
                 break;
             case 's':
                 if (optarg==NULL) {
@@ -724,7 +732,7 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
 }
 
 /*----------------------------------------------------------------------*
- * Function:   output_alignment
+ * Function:   log_output_alignment
  * Purpose:    Output an alignment to the log
  * Parameters: stats -> MPStats structure
  *             read -> read adaptors were aligned to
@@ -732,7 +740,7 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
  *             external_adaptor_result -> external adaptor alignment result
  * Returns:    None
  *----------------------------------------------------------------------*/
-void output_alignment(MPStats* stats, FastQRead* read, JunctionAdaptorAlignment* result, GenericAdaptorAlignment* external_adaptor_result)
+void log_output_alignment(MPStats* stats, FastQRead* read, JunctionAdaptorAlignment* result, GenericAdaptorAlignment* external_adaptor_result)
 {
     char s1[MAX_READ_LENGTH];
     char s2[MAX_READ_LENGTH];
@@ -1088,9 +1096,11 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     
     if (is_duplicate) {
         stats->n_duplicates++;
-        fprintf(stats->duplicates_fp, "Match: %s\n", kmer_string);
-        fprintf(stats->duplicates_fp, "   R1: %s\n", read_one->read);
-        fprintf(stats->duplicates_fp, "   R2: %s\n\n", read_two->read);
+        if (stats->duplicates_fp) {
+            fprintf(stats->duplicates_fp, "Match: %s\n", kmer_string);
+            fprintf(stats->duplicates_fp, "   R1: %s\n", read_one->read);
+            fprintf(stats->duplicates_fp, "   R2: %s\n\n", read_two->read);
+        }
     }
     
     return is_duplicate;
@@ -1150,10 +1160,11 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     if (found) {
         e->count++;
         is_duplicate = true;
-            
-        fprintf(stats->duplicates_fp, "Match: %s\n", kmer_string);
-        fprintf(stats->duplicates_fp, "   R1: %s\n", read_one->read);
-        fprintf(stats->duplicates_fp, "   R2: %s\n\n", read_two->read);
+        if (stats->duplicates_fp) {
+            fprintf(stats->duplicates_fp, "Match: %s\n", kmer_string);
+            fprintf(stats->duplicates_fp, "   R1: %s\n", read_one->read);
+            fprintf(stats->duplicates_fp, "   R2: %s\n\n", read_two->read);
+        }
     } else {
         e->flags = 1;
         e->count = 1;
@@ -1178,18 +1189,17 @@ void process_files(MPStats* stats)
     int is_duplicate;
     
     if (stats->log_filename[0] != 0) {
-        char duplicates_filename[1024];
-
         stats->log_fp = fopen(stats->log_filename, "w");
         if (!stats->log_fp) {
             printf("Error: Can't open %s\n", stats->log_filename);
             exit(102);
         }
-        
-        sprintf(duplicates_filename, "%s.pcr.txt", stats->log_filename);
-        stats->duplicates_fp = fopen(duplicates_filename, "w");
+    }
+    
+    if (stats->duplicates_log_filename[0] != 0) {
+        stats->duplicates_fp = fopen(stats->duplicates_log_filename, "w");
         if (!stats->duplicates_fp) {
-            printf("Error: Can't open %s\n", duplicates_filename);
+            printf("Error: Can't open %s\n", stats->duplicates_log_filename);
             exit(102);
         }
     }
@@ -1262,7 +1272,7 @@ void process_files(MPStats* stats)
 
                     // Display log information
                     if (stats->log_fp != 0) {
-                        output_alignment(stats, &reads[i], &junction_adaptor_alignments[i], &external_adaptor_alignments[i]);
+                        log_output_alignment(stats, &reads[i], &junction_adaptor_alignments[i], &external_adaptor_alignments[i]);
                     }
                                     
                     // If junction adaptor found...
