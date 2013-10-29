@@ -1,6 +1,5 @@
 #!/usr/bin/perl -w
 
-
 # Script:  nextclip_sam_parse.pl
 # Purpose: Parse SAM files for NextClip
 # Author:  Richard Leggett
@@ -41,6 +40,7 @@ my $mp_target_too_small=0;
 my $pe_target_too_small=0;
 my $tandem_target_too_small=0;
 my $min_map_q = 0;
+my $log_filename = 0;
 my %read_one_alignments;
 my $reference_filename = "";
 my $reference_min_size = 0;
@@ -54,21 +54,44 @@ my %reference_lengths;
 'mplimit:i'    => \$mp_limit,
 'pelimit:i'    => \$pe_limit,
 'refminsize:i' => \$reference_min_size,
-'minmapq:i'    => \$min_map_q
+'minmapq:i'    => \$min_map_q,
+'log:s'        => \$log_filename
 );
+
+log_print("\nIn nextclip_sam_parse.pl\n");
 
 die if not defined $read_one;
 die if not defined $read_two;
 die if not defined $out_prefix;
+
+log_print("R1: $read_one\nR2: $read_one\nOut prefix: $out_prefix\nMP limit: $mp_limit\nPE limit: $pe_limit\nRefminsize: $reference_min_size\nMinmapq: $min_map_q\n");
+log_print("Reference: $reference_filename\n") if (defined $reference_filename);
+
+# Check for files
+unless (-e $read_one) {
+    log_and_screen("ERROR: nextclip_sam_parse.pl: Can't find R1 file $read_one\n");
+    die;
+}
+
+unless (-e $read_two) {
+    log_and_screen("ERROR: nextclip_sam_parse.pl: Can't find R2 file $read_two\n");
+    die;
+}
 
 my $mp_out_filename = $out_prefix."_mp.txt";
 my $pe_out_filename = $out_prefix."_pe.txt";
 my $tandem_out_filename = $out_prefix."_tandem.txt";
 my $unmapped_out_filename = $out_prefix."_unmapped.txt";
 
+log_print("MP out filename: $mp_out_filename\nPE out filename: $pe_out_filename\nTandem out filename: $tandem_out_filename\nUnmapped out filename: $unmapped_out_filename\n");
+
 if ($reference_min_size > 0) {
-    die "ERROR: You must specify a reference filename if using -minsize\n" if ($reference_filename eq "");
-    load_reference_index();
+    if ($reference_filename eq "") {
+        log_and_screen("WARNING: nextclip_sam_parse.pl: You've specified a reference minimum size, so you must specify a reference filename. Will reset refminsize to 0.");
+        $reference_min_size=0;
+    } else {
+        load_reference_index();
+    }
 }
 
 open(my $fh_mp, ">".$mp_out_filename);
@@ -328,7 +351,7 @@ sub write_to_graph_file
         if (defined $reference_lengths{$ref}) {
             $length = $reference_lengths{$ref};
         } else {
-            die "ERROR: No length defined for ID [$ref]\n";
+            die "ERROR: nextclip_sam_parse.pl: No length defined for ID [$ref]\n";
         }
     }
 
@@ -356,8 +379,8 @@ sub load_reference_index
 {
     my $reference_index = $reference_filename.".nextclip";
 
-    print "Opening index file $reference_index\n";
-    
+    log_and_screen("Opening index file $reference_index\n");
+    log_and_screen("ERROR: nextclip_sam_parse.pl: Can't find $reference_index - have you run nextclip_index_reference.pl as per the manual?\n") unless (-e $reference_index);
     open(INDEXFILE, $reference_index) or die "Can't open reference index $reference_index\n";
 
     while(<INDEXFILE>) {
@@ -367,10 +390,26 @@ sub load_reference_index
         my $length = $arr[1];
         
         if (defined $reference_lengths{$id}) {
-            print "WARNING: ID $id already used.\n";
+            print "WARNING: nextclip_sam_parse.pl: Reference ID $id already used.\n";
         } else {
             $reference_lengths{$id} = $length;
         }
     }
     close(INDEXFILE);
+}
+
+# Write to log and screen
+sub log_and_screen
+{
+    log_print(@_);
+    print @_;
+}
+
+sub log_print
+{
+    if (defined $log_filename) {
+        open(my $log_fh, ">>".$log_filename);
+        print $log_fh @_;
+        close($log_fh);
+    }
 }
