@@ -301,37 +301,48 @@ print  "                       Tandem limit:\t", $tandem_limit, "\n";
 print  "      Reference minimum contig size:\t", $reference_min_size, "\n";
 print  "                     MAPQ threshold:\t", $min_map_q, "\n";
 print  "               Number of alignments:\t", $counter, "\n";
-printf "\n";
-printf "     Total number with good mapping:\t%i\t%.2f\n", $total_good_maps, 100.0*$total_good_maps/$counter;
-printf "           Total good maps in limit:\t%i\t%.2f\n", $total_good_maps_in_range, 100.0*$total_good_maps_in_range/$counter;
-printf "       Total good maps out of limit:\t%i\t%.2f\n", $total_good_maps_out_of_range, 100.0*$total_good_maps_out_of_range/$counter;
-printf "\n";
-printf "          Number with both unmapped:\t%i\t%.2f\n", $unmapped, 100.0*$unmapped/$counter;
-printf "      Number with one read unmapped:\t%i\t%.2f\n", $n_single_mapped, 100.0*$n_single_mapped/$counter;
-printf "        Number that map differently:\t%i\t%.2f\n", $n_map_differently, 100.0*$n_map_differently/$counter;
-printf "           Number with poor mapping:\t%i\t%.2f\n", $n_poor_mapping, 100.0*$n_poor_mapping/$counter;
-printf "      Total number with bad mapping:\t%i\t%.2f\n", $total_bad_maps, 100.0*$total_bad_maps/$counter;
-printf "\n";
-printf "                Number of mate pair:\t%i\t%.2f\t%.2f\t%.2f\n", $n_mp, $pc_mp, $av_mp_one, $av_mp_two;
-printf "       Number of mate pair in limit:\t%i\t%.2f\n", ($n_mp - $n_mp_out_of_range), $pc_mp_in_range;
-printf "    (MPs aligning to small contigs):\t%i\n", $mp_target_too_small if ($reference_min_size > 0);
-printf "   Number of mate pair out of limit:\t%i\t%.2f\n", $n_mp_out_of_range, $pc_mp_out_of_range;
-printf "\n";
-printf "                 Number of pair end:\t%i\t%.2f\t%.2f\t%.2f\n", $n_pe, $pc_pe, $av_pe_one, $av_pe_two;
-printf "        Number of pair end in limit:\t%i\t%.2f\n", ($n_pe - $n_pe_out_of_range), $pc_pe_in_range;
-printf "    (PEs aligning to small contigs):\t%i\n", $pe_target_too_small if ($reference_min_size > 0);
-printf "    Number of pair end out of limit:\t%i\t%.2f\n", $n_pe_out_of_range, $pc_pe_out_of_range;
-printf "\n";
-printf "                   Number of tandem:\t%i\t%.2f\t%.2f\t%.2f\n", $n_tandem, $pc_tandem, $av_tandem_one, $av_tandem_two;
-printf "          Number of tandem in limit:\t%i\t%.2f\n", ($n_tandem - $n_tandem_out_of_range), $pc_tandem_in_range;
-printf " (Tandem aligning to small contigs):\t%i\n", $tandem_target_too_small if ($reference_min_size > 0);
-printf "      Number of tandem out of limit:\t%i\t%.2f\n", $n_tandem_out_of_range, $pc_tandem_out_of_range;
-printf "\n";
-print  "                    Number of dupes:\t", $n_dupes, "\n";
-print  "                 Recalculated total:\t", $unmapped+$n_single_mapped+$n_map_differently+$n_mp+$n_pe+$n_tandem, "\n";
+
+if ($counter > 0) {
+    printf "\n";
+    printf "     Total number with good mapping:\t%i\t%.2f\n", $total_good_maps, 100.0*$total_good_maps/$counter;
+    printf "           Total good maps in limit:\t%i\t%.2f\n", $total_good_maps_in_range, 100.0*$total_good_maps_in_range/$counter;
+    printf "       Total good maps out of limit:\t%i\t%.2f\n", $total_good_maps_out_of_range, 100.0*$total_good_maps_out_of_range/$counter;
+    printf "\n";
+    printf "          Number with both unmapped:\t%i\t%.2f\n", $unmapped, 100.0*$unmapped/$counter;
+    printf "      Number with one read unmapped:\t%i\t%.2f\n", $n_single_mapped, 100.0*$n_single_mapped/$counter;
+    printf "        Number that map differently:\t%i\t%.2f\n", $n_map_differently, 100.0*$n_map_differently/$counter;
+    printf "           Number with poor mapping:\t%i\t%.2f\n", $n_poor_mapping, 100.0*$n_poor_mapping/$counter;
+    printf "      Total number with bad mapping:\t%i\t%.2f\n", $total_bad_maps, 100.0*$total_bad_maps/$counter;
+    printf "\n";
+    printf "                Number of mate pair:\t%i\t%.2f\t%.2f\t%.2f\n", $n_mp, $pc_mp, $av_mp_one, $av_mp_two;
+    printf "       Number of mate pair in limit:\t%i\t%.2f\n", ($n_mp - $n_mp_out_of_range), $pc_mp_in_range;
+    printf "    (MPs aligning to small contigs):\t%i\n", $mp_target_too_small if ($reference_min_size > 0);
+    printf "   Number of mate pair out of limit:\t%i\t%.2f\n", $n_mp_out_of_range, $pc_mp_out_of_range;
+    printf "\n";
+    printf "                 Number of pair end:\t%i\t%.2f\t%.2f\t%.2f\n", $n_pe, $pc_pe, $av_pe_one, $av_pe_two;
+    printf "        Number of pair end in limit:\t%i\t%.2f\n", ($n_pe - $n_pe_out_of_range), $pc_pe_in_range;
+    printf "    (PEs aligning to small contigs):\t%i\n", $pe_target_too_small if ($reference_min_size > 0);
+    printf "    Number of pair end out of limit:\t%i\t%.2f\n", $n_pe_out_of_range, $pc_pe_out_of_range;
+    printf "\n";
+    printf "                   Number of tandem:\t%i\t%.2f\t%.2f\t%.2f\n", $n_tandem, $pc_tandem, $av_tandem_one, $av_tandem_two;
+    printf "          Number of tandem in limit:\t%i\t%.2f\n", ($n_tandem - $n_tandem_out_of_range), $pc_tandem_in_range;
+    printf " (Tandem aligning to small contigs):\t%i\n", $tandem_target_too_small if ($reference_min_size > 0);
+    printf "      Number of tandem out of limit:\t%i\t%.2f\n", $n_tandem_out_of_range, $pc_tandem_out_of_range;
+    printf "\n";
+    print  "                    Number of dupes:\t", $n_dupes, "\n";
+    print  "                 Recalculated total:\t", $unmapped+$n_single_mapped+$n_map_differently+$n_mp+$n_pe+$n_tandem, "\n";
+} else {
+    log_and_screen("\nERROR: No alignments - did the BWA stage work correctly?\n");
+}
 
 if ($reference_min_size > 0) {
     print "\nNote: Pairs aligning to small (<",$reference_min_size,") contigs have not been written to output.\n";
+}
+
+if ($n_mp < 10) {
+   log_and_screen("\nERROR: Number of MP alignments (".$n_mp.") too small\n");
+} elsif ($n_mp < 1000) {
+   log_and_screen("\nWARNING: Number of MP alignments (".$n_mp.") too small\n");
 }
 
 printf "\nDONE\n";
