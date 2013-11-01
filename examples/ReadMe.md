@@ -11,11 +11,11 @@ Please be aware that the data is a much reduced subset of a full library, so res
 
 First compile NextClip as detailed in the manual. To run the tool, change into the examples directory:
 
-cd examples
+`cd examples`
 
 Then type:
 
-../bin/nextclip -i reads/LIB1468part_ATCACG_L001_R1_001.fastq -j reads/LIB1468part_ATCACG_L001_R2_001.fastq -n 125000 -o output
+`../bin/nextclip -i reads/LIB1468part_ATCACG_L001_R1_001.fastq -j reads/LIB1468part_ATCACG_L001_R2_001.fastq -n 125000 -o output`
 
 #Running the NextClip analysis pipeline#
 
@@ -23,17 +23,17 @@ To run the NextClip pipeline, ensure you have BWA, R and LaTeX installed and ava
 
 First, index the reference:
 
-cd references
+`cd references`
 
-bwa index -a bwtsw AL645882.fasta
+`bwa index -a bwtsw AL645882.fasta`
 
-../../scripts/nextclip_index_reference.pl AL645882.fasta
+`../../scripts/nextclip_index_reference.pl AL645882.fasta`
 
 Then to run the analysis pipeline, type:
 
-cd ..
+`cd ..`
 
-../scripts/nextclip_lmp_analysis.pl -config configure/LIB1468.txt -scheduler none -bwathreads 1
+`../scripts/nextclip_lmp_analysis.pl -config configure/LIB1468.txt -scheduler none -bwathreads 1`
 
 If all works successfully, a new directory called LIB1468 should appear and inside that will be a latex directory containing a PDF file.
 
