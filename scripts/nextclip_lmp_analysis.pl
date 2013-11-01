@@ -372,8 +372,18 @@ sub submit_job
     } elsif ($scheduler eq "PBS") {
         submit_pbs($command, $this_id, $log, $previous_id, $threads, $memory);
     } elsif ($scheduler eq "none") {
-        log_print "Executing $command\n";
-        system($command);
+        my $system_command;
+
+        # Minor bodge to ensure nextclip output ends up in a log when not running with scheduler
+        if (($this_id =~ /_sam_/) ||
+            ($this_id =~ /_sai_/)) {
+            $system_command = $command;
+        } else {
+            $system_command = $command." > ".$log;
+        }
+
+        log_and_screen "Executing $system_command\n";
+        system($system_command);
     } else {
         die "Unknown job scheduler $scheduler\n";
     }
