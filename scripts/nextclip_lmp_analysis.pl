@@ -9,10 +9,12 @@
 use warnings;
 use strict;
 use Getopt::Long;
+use Cwd;
 
-# Change these paths
-my $nextclip_tool="/usr/users/ga002/leggettr/programs/nextclip/bin/nextclip";
+# ==================== CHANGE AS APPROPRIATE FOR YOUR ENVIRONMENT ====================
 my $script_dir="/data/workarea/leggettr/matepairs/scripts";
+my $nextclip_tool="/usr/users/ga002/leggettr/programs/nextclip/bin/nextclip";
+# ====================================================================================
 
 # Command line options
 my $configure_file;
@@ -42,6 +44,7 @@ my $read_two_noadapt;
 my $read_length;
 my $machine;
 my $log_filename;
+my %job_id_table;
 
 # Get command line options
 &GetOptions(
@@ -69,7 +72,7 @@ if ($help) {
 
 # Check we know everything
 die "Error: You must specify a config file\n" if not defined $configure_file;
-die "Error: Scheduler must be either LSF or none\n" if (($scheduler ne "none") && ($scheduler ne "LSF"));
+die "Error: Scheduler must be either LSF, PBS or none\n" if (($scheduler ne "none") && ($scheduler ne "LSF") && ($scheduler ne "PBS"));
 die "Error: BWA threads must be between 1 and 32\n" if (($bwa_threads <1) || ($bwa_threads > 32));
 die "Error: minmapq must be between 0 and 255\n" if (($min_map_q < 0) || ($min_map_q > 255));
 
@@ -111,10 +114,10 @@ sub log_print
 # Check software versions
 sub check_software
 {
-    my @nextclip_output = `nextclip -h 2>&1`;
-    my @bwa_output = `bwa 2>&1`;
-    my $r_output = `Rscript --version 2>&1`;
-    my @tex_output = `pdflatex --version 2>&1`;
+    my @nextclip_output = readpipe($nextclip_tool." -h 2>&1");
+    my @bwa_output = readpipe("bwa 2>&1");
+    my $r_output = readpipe("Rscript --version 2>&1");
+    my @tex_output = readpipe("pdflatex --version 2>&1");
     my $nextclip_found = 0;
     my $bwa_found = 0;
     my $r_found = 0;
@@ -287,7 +290,74 @@ sub find_read_length_and_machine
     log_and_screen "  Machine name: $machine\n\n";
 }
 
+# Handle PBS
+#
+# job_id_table handles the mapping between PBS IDs and the job IDs used internally in this program.
+sub submit_pbs
+{
+    my $command = $_[0];
+    my $this_id = $_[1];
+    my $log = $_[2];
+    my $previous_id = $_[3];
+    my $threads = $_[4];
+    my $memory = $_[5];
+    my $cwd = getcwd();
+    my $system_command = "echo \"cd ".$cwd." ; ".$command."\" | qsub -V -l ncpus=".$threads.",mem=".$memory."mb,walltime=4800:00:00 -j oe -o ".$log; #." -N ".$this_id;
+    
+    if ($previous_id ne "") {
+        if ($previous_id =~ /\*$/) {
+            my $count=0;
+            $previous_id =~ s/\*$//;
+            foreach my $id ( keys %job_id_table )
+            {
+                if ($id =~ /^$previous_id/) {
+                    if ($count == 0) {
+                        $system_command = $system_command." -W depend=afterany"
+                    }
+                    $system_command = $system_command.":".$job_id_table{$id};
+                    $count++;
+                }
+            }
+        } else {
+            die "Can't find previous dependency $previous_id for PBS.\n" if (not defined $job_id_table{$previous_id});
+            $system_command = $system_command." -W depend=afterany:".$job_id_table{$previous_id};
+        }
+    }
+    
+    log_print "Executing $system_command\n";
+    print "PBS command: $system_command\n\n";
+    my $newid = readpipe($system_command);
+    chomp ($newid);
+    $job_id_table{$this_id} = $newid;
+}
+
+# Handle LSF
+sub submit_lsf
+{
+    my $command = $_[0];
+    my $this_id = $_[1];
+    my $log = $_[2];
+    my $previous_id = $_[3];
+    my $threads = $_[4];
+    my $memory = $_[5];
+    my $system_command;
+
+    $system_command="bsub -oo ".$log." -J ".$this_id;
+    if ($previous_id ne "") {
+        $system_command = $system_command." -w \"ended(".$previous_id.")\"";
+    }
+    if ($threads > 1) {
+        $system_command = $system_command." -R \"span[hosts=1]\" -n ".$threads;
+    }
+    $system_command=$system_command." \"".$command."\"";
+    system($system_command);
+}
+
 # Submit a job
+# To add a different job scheduler:
+# 1. Add an if statement below
+# 2. Code a submit_job_XYZ function, where XYZ is the scheduler.
+# 3. Amend the die statement near the start of the program that checks for valid scheduler values
 sub submit_job
 {
     my $command = $_[0];
@@ -295,23 +365,19 @@ sub submit_job
     my $log = $_[2];
     my $previous_id = $_[3];
     my $threads = $_[4];
-    my $system_command;
+    my $memory = $_[5];
     
     if ($scheduler eq "LSF") {
-        $system_command="bsub -oo ".$log." -J ".$this_id;
-        if ($previous_id ne "") {
-            $system_command = $system_command." -w \"ended(".$previous_id.")\"";
-        }
-        if ($threads > 1) {
-            $system_command = $system_command." -R \"span[hosts=1]\" -n ".$threads;
-        }
-        $system_command=$system_command." \"".$command."\"";
+        submit_lsf($command, $this_id, $log, $previous_id, $threads, $memory);
+    } elsif ($scheduler eq "PBS") {
+        submit_pbs($command, $this_id, $log, $previous_id, $threads, $memory);
     } elsif ($scheduler eq "none") {
-        $system_command = $command;
+        log_print "Executing $command\n";
+        system($command);
+    } else {
+        die "Unknown job scheduler $scheduler\n";
     }
     
-    log_print "Executing $system_command\n";
-    system($system_command);
 }
 
 # Run NextClip
@@ -322,7 +388,7 @@ sub run_clipping
     my $previous="";
     my $job_id=$library_name."clip";
     
-    submit_job($command, $job_id, $logfile, $previous, 1);
+    submit_job($command, $job_id, $logfile, $previous, 1, 4000);
 }
 
 # Run BWA
@@ -340,18 +406,18 @@ sub run_alignment
                 my $logfile=$logdir."/sam_".$type."_R".$read.".log";
                 my $previous=$library_name."clip";
                 my $job_id=$library_name."_sam_".$type."_R".$read;
-                submit_job($command, $job_id, $logfile, $previous, $bwa_threads);
+                submit_job($command, $job_id, $logfile, $previous, $bwa_threads, 4000);
             } else {
                 my $command="bwa aln -t ".$bwa_threads." ".$reference." ".$fastqfile." > ".$saifile;
                 my $logfile=$logdir."/sai_".$type."_R".$read.".log";
                 my $previous=$library_name."clip";
                 my $job_id=$library_name."_sai_".$type."_R".$read;
-                submit_job($command, $job_id, $logfile, $previous, $bwa_threads);
+                submit_job($command, $job_id, $logfile, $previous, $bwa_threads, 4000);
                 $command="bwa samse ".$reference." ".$saifile." ".$fastqfile." > ".$samfile;
                 $logfile=$logdir."/sam_".$type."_R".$read.".log";
                 $previous=$job_id;
                 $job_id=$library_name."_sam_".$type."_R".$read;
-                submit_job($command, $job_id, $logfile, $previous, $bwa_threads);
+                submit_job($command, $job_id, $logfile, $previous, $bwa_threads, 4000);
             }
         }
     }
@@ -369,7 +435,7 @@ sub parse_alignment
         my $logfile=$logdir."/parse_".$type.".log";
         my $previous=$library_name."_sam_".$type."*";
         my $job_id=$library_name."_parse_".$type;
-        submit_job($command, $job_id, $logfile, $previous, 1);
+        submit_job($command, $job_id, $logfile, $previous, 1, 4000);
     }
 }
 
@@ -380,7 +446,7 @@ sub plot_graphs
     my $logfile=$logdir."/plot_graphs.log";
     my $previous=$library_name."_parse*";
     my $job_id=$library_name."_plot_graphs";
-    submit_job($command, $job_id, $logfile, $previous, 1);
+    submit_job($command, $job_id, $logfile, $previous, 1, 4000);
 }
 
 # Make LaTeX report
@@ -390,5 +456,5 @@ sub make_report
     my $logfile=$logdir."/makereport.log";
     my $previous=$library_name."_plot_graphs";
     my $job_id=$library_name."_latex";
-    submit_job($command, $job_id, $logfile, $previous, 1);
+    submit_job($command, $job_id, $logfile, $previous, 1, 4000);
 }
