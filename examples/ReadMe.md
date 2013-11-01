@@ -22,12 +22,17 @@ Then type:
 To run the NextClip pipeline, ensure you have BWA, R and LaTeX installed and available and that you have carried out all the other installation steps detailed in the manual.
 
 First, index the reference:
+
 cd references
+
 bwa index -a bwtsw AL645882.fasta
+
 ../../scripts/nextclip_index_reference.pl AL645882.fasta
 
 Then to run the analysis pipeline, type:
+
 cd ..
+
 ../scripts/nextclip_lmp_analysis.pl -config configure/LIB1468.txt -scheduler none -bwathreads 1
 
 If all works successfully, a new directory called LIB1468 should appear and inside that will be a latex directory containing a PDF file.
