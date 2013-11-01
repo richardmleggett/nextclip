@@ -2,7 +2,7 @@ BIN = bin
 MAXK = 63
 
 ifdef MAC
-CC=gcc
+CC=~/gcc/bin/gcc
 endif
 
 ifeq ($(MAXK),31)
@@ -21,12 +21,12 @@ ifeq ($(MAXK),127)
    BITFIELDS = 4
 endif
 
-ifdef MAC
-MACFLAG = -fnested-functions
-# -L/opt/local/lib/ 
-endif
+# On older versions of XCode, it was necessary to include the following
+#ifdef MAC
+#MACFLAG = -fnested-functions -L/opt/local/lib/ 
+#endif
 
-OPT	= $(ARCH) -Wall -O3 $(MACFLAG) -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
+OPT	= $(ARCH) -Wall -O3 -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
 
 CFLAGS_NEXTCLIP = -Iinclude
 

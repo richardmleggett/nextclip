@@ -11,7 +11,6 @@ First compile NextClip as detailed in the manual. To run the tool, change into t
 
 nextclip -i reads/LIB1468part_ATCACG_L001_R1_001.fastq -j reads/LIB1468part_ATCACG_L001_R2_001.fastq -n 125000 -o output
 
-
 Running the NextClip analysis pipeline
 
 To run the NextClip pipeline, ensure you have BWA, R and LaTeX installed and available and that you have carried out all the other installation steps detailed in the manual.
