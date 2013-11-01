@@ -10,9 +10,11 @@ Please be aware that the data is a much reduced subset of a full library, so res
 #Running NextClip standalone#
 
 First compile NextClip as detailed in the manual. To run the tool, change into the examples directory:
+
 cd examples
 
 Then type:
+
 ../bin/nextclip -i reads/LIB1468part_ATCACG_L001_R1_001.fastq -j reads/LIB1468part_ATCACG_L001_R2_001.fastq -n 125000 -o output
 
 #Running the NextClip analysis pipeline#
