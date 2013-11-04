@@ -29,12 +29,12 @@ my %att;
 'reference:s'  => \$reference
 );
 
-die "ERROR: You must specify a -libdir option." if (not defined $library_dir);
-die "ERROR: You must specify a -log option." if (not defined $log_filename);
-die "ERROR: You must specify a -libname option." if (not defined $library_name);
-die "ERROR: You must specify a -organism option." if (not defined $organism);
-die "ERROR: You must specify a -reference option." if (not defined $reference);
-die "ERROR: You must specify a -nextclip option." if (not defined $nextclip_file);
+die "ERROR: You must specify a -libdir option.\n" if (not defined $library_dir);
+die "ERROR: You must specify a -log option.\n" if (not defined $log_filename);
+die "ERROR: You must specify a -libname option.\n" if (not defined $library_name);
+die "ERROR: You must specify a -organism option.\n" if (not defined $organism);
+die "ERROR: You must specify a -reference option.\n" if (not defined $reference);
+die "ERROR: You must specify a -nextclip option.\n" if (not defined $nextclip_file);
 
 my $title=$library_name;
 my $output_dir=$library_dir."/latex";
@@ -258,7 +258,12 @@ sub output_category_report
         }
     }
     close(SUMFILE);
-    
+   
+    if ((not defined $att{"n_mp"}) || (not defined $att{"n_pe"}) || (not defined $att{"n_tandem"}) || (not defined $att{"bad_maps"})) {
+        log_and_screen("\nERROR: Missing fields in ".$sumfile." - did BWA run correctly?\n");
+        die;
+    }
+ 
     if ($suffix eq "A") {
         print $parseable_fh "MPLimit:".$att{"mp_limit"}."\n";
         print $parseable_fh "PELimit:".$att{"pe_limit"}."\n";
@@ -498,8 +503,13 @@ sub get_main_stats
         } elsif ($line =~ /Overall GC content: (\S+)/) {
             $attributes{"gc_content"} = $1;
         }
-
     }
+
+    if (not defined $attributes{"gc_content"}) {
+        log_and_screen("\nERROR: Can't read nextclip log - did something go wrong?\n");
+        die;
+    }
+
     close(NCFILE);
 }
 
