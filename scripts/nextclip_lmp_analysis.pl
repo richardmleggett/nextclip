@@ -20,7 +20,7 @@ my $nextclip_tool="/usr/users/ga002/leggettr/programs/nextclip/bin/nextclip";
 my $configure_file;
 my $bwa_threads=1;
 my $min_map_q=10;
-my $scheduler="none";
+my $scheduler="NONE";
 my $help;
 
 # Things in the configure file
@@ -31,6 +31,7 @@ my $read_one;
 my $read_two;
 my $reference;
 my $minimum_contig_alignment_size;
+my $number_of_pairs;
 
 # We'll work these out later
 my $logdir;
@@ -64,15 +65,19 @@ if ($help) {
     print "Syntax: nextclip_lmp_analysis.pl -config <file> [options]\n\n";
     print "Options\n";
     print "    -config <file> - Specify name of configuration file\n";
-    print "    -scheduler <name> - Specify job scheduler to use (default none)\n";
+    print "    -scheduler <name> - Specify job scheduler to use (default NONE)\n";
     print "    -bwathreads <int> - Specify number of threads to use for BWA (default 1)\n";
     print "    -minmapq <int> - Specify minimum mapping quality (default 10)\n\n";
     exit(0);
 }
 
+if (defined $scheduler) {
+    $scheduler = uc($scheduler);
+}
+
 # Check we know everything
 die "Error: You must specify a config file\n" if not defined $configure_file;
-die "Error: Scheduler must be either LSF, PBS or none\n" if (($scheduler ne "none") && ($scheduler ne "LSF") && ($scheduler ne "PBS"));
+die "Error: Scheduler must be either LSF, PBS or none\n" if (($scheduler ne "NONE") && ($scheduler ne "LSF") && ($scheduler ne "PBS"));
 die "Error: BWA threads must be between 1 and 32\n" if (($bwa_threads <1) || ($bwa_threads > 32));
 die "Error: minmapq must be between 0 and 255\n" if (($min_map_q < 0) || ($min_map_q > 255));
 
@@ -211,6 +216,8 @@ sub read_config_file
             $reference = $arr[1];
         } elsif ($arr[0] eq "minimum_contig_alignment_size") {
             $minimum_contig_alignment_size = $arr[1];
+        } elsif ($arr[0] eq "number_of_pairs") {
+            $number_of_pairs = $arr[1];
         }
     }
     close(CONFIGFILE);
@@ -286,8 +293,24 @@ sub find_read_length_and_machine
     $read_length = length($read);
     my @arr = split(':', $header);
     $machine = $arr[0];
-    log_and_screen "   Read length: $read_length\n";
-    log_and_screen "  Machine name: $machine\n\n";
+    log_and_screen "     Read length: $read_length\n";
+    log_and_screen "    Machine name: $machine\n";
+
+    if (not defined $number_of_pairs) {
+        print "Counting number of input pairs...\n\n";
+        my $result = readpipe("wc -l ".$read_one);
+        my @arr = split (/ /, $result);
+        my $lines = $arr[0];
+
+        if ($lines > 0) {
+            $number_of_pairs = $lines / 4;
+        } else {
+            log_and_screen "Something went wrong with line count - defaulting to 100000000\n";
+            $number_of_pairs = 100000000;
+        }
+    }
+
+    log_and_screen " Number of pairs: $number_of_pairs\n\n";
 }
 
 # Handle PBS
@@ -371,18 +394,21 @@ sub submit_job
         submit_lsf($command, $this_id, $log, $previous_id, $threads, $memory);
     } elsif ($scheduler eq "PBS") {
         submit_pbs($command, $this_id, $log, $previous_id, $threads, $memory);
-    } elsif ($scheduler eq "none") {
+    } elsif ($scheduler eq "NONE") {
         my $system_command;
 
         # Minor bodge to ensure nextclip output ends up in a log when not running with scheduler
         if (($this_id =~ /_sam_/) ||
-            ($this_id =~ /_sai_/)) {
+            ($this_id =~ /_sai_/) ||
+            ($this_id =~ /_latex$/)) {
             $system_command = $command;
+        } elsif ($this_id =~/clip$/) {
+            $system_command = $command." 2>&1 | tee ".$log;
         } else {
             $system_command = $command." > ".$log;
         }
 
-        log_and_screen "Executing $system_command\n";
+        log_and_screen "Executing $system_command\n\n";
         system($system_command);
     } else {
         die "Unknown job scheduler $scheduler\n";
@@ -393,7 +419,8 @@ sub submit_job
 # Run NextClip
 sub run_clipping
 {
-    my $command=$nextclip_tool." --input_one ".$read_one." --input_two ".$read_two." --output_prefix ".$readsdir."/".$library_name." --log ".$logdir."/nextclip_alignment.log --min_length 25 --number_of_reads 100000000 --trim_ends 0"; # --duplicates_log ".$logdir."/nextclip_duplicates.log";
+    my $num_pairs = $number_of_pairs * 2;
+    my $command=$nextclip_tool." --input_one ".$read_one." --input_two ".$read_two." --output_prefix ".$readsdir."/".$library_name." --log ".$logdir."/nextclip_alignment.log --min_length 25 --number_of_reads ".$num_pairs." --trim_ends 0"; # --duplicates_log ".$logdir."/nextclip_duplicates.log";
     my $logfile=$logdir."/nextclip.log";
     my $previous="";
     my $job_id=$library_name."clip";
