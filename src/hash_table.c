@@ -57,14 +57,14 @@ HashTable * hash_table_new(int number_bits, int bucket_size, int max_rehash_trie
 	//HashTable *hash_table = malloc(sizeof(HashTable));
 	HashTable *hash_table = calloc(1,sizeof(HashTable));
 	if (hash_table == NULL) {
-		fprintf(stderr,"could not allocate hash table of size %qd\n", (long long) bucket_size * (1 << number_bits));
+		fprintf(stderr,"ERROR: could not allocate hash table of size %qd\n", (long long) bucket_size * (1 << number_bits));
         exit(1);
 		//return NULL;
 	}
 	
 	hash_table->collisions = calloc(max_rehash_tries, sizeof(long long));
 	if (hash_table->collisions == NULL) {
-		fprintf(stderr,"could not allocate memory\n");
+		fprintf(stderr,"ERROR: could not allocate memory\n");
 		exit(1);
         //return NULL;
 		//exit(1);
@@ -79,14 +79,14 @@ HashTable * hash_table_new(int number_bits, int bucket_size, int max_rehash_trie
 	hash_table->table = calloc(hash_table->number_buckets * hash_table->bucket_size, sizeof(Element));
 	
 	if (hash_table->table == NULL) {
-		fprintf(stderr,"could not allocate hash table of size %qd\n",hash_table->number_buckets * hash_table->bucket_size);
+		fprintf(stderr,"ERROR: could not allocate hash table of size %qd\n",hash_table->number_buckets * hash_table->bucket_size);
 		//return NULL;
 		exit(1);
 	}
 	
 	hash_table->next_element = calloc(hash_table->number_buckets, sizeof(int));
 	if (hash_table->table == NULL) {
-		fprintf(stderr,"could not allocate array of pointers for next available element in buckets [%qd]\n",hash_table->number_buckets);
+		fprintf(stderr,"ERROR: could not allocate array of pointers for next available element in buckets [%qd]\n",hash_table->number_buckets);
 		//return NULL;
 		exit(1);
 	}
