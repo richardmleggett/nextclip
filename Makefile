@@ -2,7 +2,8 @@ BIN = bin
 MAXK = 63
 
 ifdef MAC
-CC=~/gcc/bin/gcc
+CC=gcc
+#CC=~/gcc/bin/gcc
 endif
 
 ifeq ($(MAXK),31)
