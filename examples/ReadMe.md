@@ -5,7 +5,7 @@ This directory contains some example data for testing NextClip. This consists of
 2. Inside the reference directory: the S. coelicolor reference, from https://www.ebi.ac.uk/ena/data/view/AL645882.
 3. Inside the configure directory, LIB468.txt is a parameters file for passing to the NextClip pipeline.
 
-Please be aware that the data is a much reduced subset of a full library, so results may have a few quirks. This is just intended as an illustration of how to use the tool.
+Please be aware that the data is a much reduced subset of a full library, so results may have a few quirks (for example, only one PE alignment in range for category A resulting in an unusual graph). This is just intended as an illustration of how to use the tool.
 
 #Running NextClip standalone#
 
