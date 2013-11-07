@@ -46,7 +46,7 @@ my $parseable_fh;
 open($latex_fh, ">".$latex_file) or die "ERROR: Can't open latex file $latex_file\n";
 open($parseable_fh, ">".$parseable_file) or die "ERROR: Can't open parseable file $parseable_file\n";
 
-$title =~ s/_/\\\\_/g;
+$title =~ s/_/\\_/g;
 
 if ($organism ne "Unknown") {
     $title="NextClip report for $title ($organism)"
