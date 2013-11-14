@@ -12,8 +12,8 @@ use Getopt::Long;
 use Cwd;
 
 # ==================== CHANGE AS APPROPRIATE FOR YOUR ENVIRONMENT ====================
-my $script_dir="/data/workarea/leggettr/matepairs/scripts";
-my $nextclip_tool="/usr/users/ga002/leggettr/programs/nextclip/bin/nextclip";
+my $script_dir="/Users/leggettr/Downloads/nextclip-master/scripts";
+my $nextclip_tool="/Users/leggettr/Downloads/nextclip-master/bin/nextclip";
 # ====================================================================================
 
 # Command line options
@@ -202,22 +202,24 @@ sub read_config_file
     while (<CONFIGFILE>) {
         chomp(my $line = $_);
         my @arr=split(':', $line);
-        if ($arr[0] eq "library_name") {
-            $library_name = $arr[1];
-        } elsif ($arr[0] eq "organism") {
-            $organism = $arr[1];
-        } elsif ($arr[0] eq "output_dir") {
-            $output_dir = $arr[1];
-        } elsif ($arr[0] eq "read_one") {
-            $read_one = $arr[1];
-        } elsif ($arr[0] eq "read_two") {
-            $read_two = $arr[1];
-        } elsif ($arr[0] eq "reference") {
-            $reference = $arr[1];
-        } elsif ($arr[0] eq "minimum_contig_alignment_size") {
-            $minimum_contig_alignment_size = $arr[1];
-        } elsif ($arr[0] eq "number_of_pairs") {
-            $number_of_pairs = $arr[1];
+        if (defined $arr[0]) {
+            if ($arr[0] eq "library_name") {
+                $library_name = $arr[1];
+            } elsif ($arr[0] eq "organism") {
+                $organism = $arr[1];
+            } elsif ($arr[0] eq "output_dir") {
+                $output_dir = $arr[1];
+            } elsif ($arr[0] eq "read_one") {
+                $read_one = $arr[1];
+            } elsif ($arr[0] eq "read_two") {
+                $read_two = $arr[1];
+            } elsif ($arr[0] eq "reference") {
+                $reference = $arr[1];
+            } elsif ($arr[0] eq "minimum_contig_alignment_size") {
+                $minimum_contig_alignment_size = $arr[1];
+            } elsif ($arr[0] eq "number_of_pairs") {
+                $number_of_pairs = $arr[1];
+            }
         }
     }
     close(CONFIGFILE);
@@ -298,10 +300,10 @@ sub find_read_length_and_machine
 
     if (not defined $number_of_pairs) {
         print "Counting number of input pairs...\n\n";
-        my $result = readpipe("wc -l ".$read_one);
-        my @arr = split (/ /, $result);
+        my $result = readpipe("wc -l ".$read_one); 
+        my @arr = split(' ', $result);
         my $lines = $arr[0];
-
+        
         if ($lines > 0) {
             $number_of_pairs = $lines / 4;
         } else {
