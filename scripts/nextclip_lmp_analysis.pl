@@ -231,6 +231,8 @@ sub read_config_file
     die "Error: Config file contained no read_two\n" if not defined $read_two;
     die "Error: Config file contained no reference\n" if not defined $reference;
     die "Error: Config file contained no minimum_contig_alignment_size\n" if not defined $minimum_contig_alignment_size;
+
+    die "Error: read 1 and read 2 are the same!\n" if ($read_one eq $read_two);
     
     die "Error: read 1 file does not exist\n" unless (-e $read_one);
     die "Error: read 2 file does not exist\n" unless (-e $read_two);
