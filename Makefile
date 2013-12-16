@@ -2,8 +2,17 @@ BIN = bin
 MAXK = 63
 
 ifdef MAC
+define n
+
+
+endef
+$(warning $n$nNOTE On Mac OS X, you must compile using GCC. If you have not already done so, please change the line CC= in this Makefile to point to your GCC compiler. $nThis must be a full path, as Apple aliases gcc to point to it's own compiler.$n)
+
+# Change the following to point to your GCC binary
 CC=gcc
-#CC=~/gcc/bin/gcc
+
+# On my MAC, I use CC=~/gcc/bin/gcc
+
 # On older versions of XCode, it was necessary to include the following
 #MACFLAG = -fnested-functions -L/opt/local/lib/ 
 endif
