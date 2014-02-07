@@ -140,8 +140,8 @@ typedef struct {
 /*----------------------------------------------------------------------*
  * Globals
  *----------------------------------------------------------------------*/
-char single_junction_adaptor[] = "CTGTCTCTTATACACATCT";
-char duplicate_junction_adaptor[] = "CTGTCTCTTATACACATCTAGATGTGTATAAGAGACAG";
+char single_junction_adaptor[128] = "CTGTCTCTTATACACATCT";
+char duplicate_junction_adaptor[128] = "CTGTCTCTTATACACATCTAGATGTGTATAAGAGACAG";
 char* external_adaptors[2] = {"GATCGGAAGAGCACACGTCTGAACTCCAGTCAC", "GATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT"};
 int minimum_read_size = 25;
 int strict_double_match = 34;
@@ -418,6 +418,9 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         switch(opt) {
             case 'd':
                 remove_duplicates=1;
+                break;
+            case 'e':
+                use_category_e = 1;
                 break;
             case 'h':
                 usage();
