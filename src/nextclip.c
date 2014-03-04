@@ -328,7 +328,7 @@ char* reverse_compliment(char* fwd, char* rev)
 void usage(void)
 {
     printf("Clip and analyse Illumina Nextera Long Mate Pair reads\n" \
-           "\nSyntax: nextclip [-r | -p] [-i r1.fastq] [-j r2.fastq]\n" \
+           "\nSyntax: nextclip [-i r1.fastq] [-j r2.fastq] [-o prefix] [options]\n" \
            "\nOptions:\n" \
            "    [-d | --remove_duplicates] Remove PCR duplicates\n"
            "    [-e | --use_category_e] Use category E\n"
