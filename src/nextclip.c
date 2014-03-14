@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "0.7"
+#define NEXTCLIP_VERSION "0.8"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
@@ -683,6 +683,7 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
         int read_end = -1;
         int query_start = -1;
         int query_end = -1;
+        int better_result = 0;
  
         // Go through each base of transposon, count matches and store start and end of match
         // For interest, we store the 19nt sequence and it's reverse as a part 1 and part 2!
@@ -705,9 +706,47 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
         
         // Score is simply matches for part 1 and 2
         score = matches[0] + matches[1];
-                    
+        
+        // This is a better match if:
+        // 1. The best result so far isn't a double match and one of the singles matches
+        // or
+        // 2. It's a better score
+        
+        // If we've got a double match...
+        if (score >= strict_double_match) {
+            // Then see if it's a better double match than we've already got...
+            if (score > result->score) {
+                better_result = 1;
+            }
+        // If we've not got a double match...
+        } else {
+            // Only do something if we've not already found a double match
+            if (result->total_matches < strict_double_match) {
+                // In which case, is the forward adaptor a single match?
+                if (matches[0] >= strict_single_match) {
+                    if (matches[0] > result->matches[0]) {
+                        better_result = 1;
+                    } else if (score > result->score) {
+                        better_result = 1;
+                    }
+                // No? What about the reverse adaptor?
+                } else if (matches[1] >= strict_single_match) {
+                    if (matches[1] > result->matches[1]) {
+                        better_result = 1;
+                    } else if (score > result->score) {
+                        better_result = 1;
+                    }
+                    // Neither? Ok, well, it's a better alignment if the score is better
+                } else {
+                    if (score > result->score) {
+                        better_result = 1;
+                    }
+                }
+            }
+        }
+        
         // Is this the best score yet?
-        if (score > result->score) {
+        if (better_result == 1) {
             result->score = score;
             result->matches[0] = matches[0];
             result->mismatches[0] = mismatches[0];
