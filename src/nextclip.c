@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "0.8"
+#define NEXTCLIP_VERSION "0.9"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
@@ -674,6 +674,8 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
     initialise_junction_adaptor_alignment(result);
     result->read_size = read->read_size;
     
+    printf("\n=> Finding adaptors...\n");
+    
     // Start searching for the transposon... x is the position in the read where we start to compare the transposon
     for (x=-adaptor_length+5; x<read->read_size-5; x++) {
         int matches[2] = {0, 0};
@@ -707,46 +709,45 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
         // Score is simply matches for part 1 and 2
         score = matches[0] + matches[1];
         
-        // This is a better match if:
-        // 1. The best result so far isn't a double match and one of the singles matches
-        // or
-        // 2. It's a better score
+        // Decide if it's a better match
         
-        // If we've got a double match...
+        // If we've found a double match...
         if (score >= strict_double_match) {
             // Then see if it's a better double match than we've already got...
             if (score > result->score) {
                 better_result = 1;
             }
-        // If we've not got a double match...
+        // Failing a double match, have we found a single match?
+        } else if ((matches[0] >= strict_single_match) || (matches[1] >= strict_single_match)) {
+            // Only consider if we haven't already found a double match
+            if (result->score < strict_double_match) {
+                int best_current_match = matches[0] > matches[1] ? matches[0]:matches[1];
+                int best_result_match = result->matches[0] > result->matches[1] ? result->matches[0]:result->matches[1];
+                
+                // It's a better match if there are more bases of a single adaptor
+                // OR, the same number of bases of a single adaptor, but a higher score.
+                
+                if (best_current_match > best_result_match) {
+                    better_result = 1;
+                } else if ((best_current_match == best_result_match) &&
+                           (score > result->score)) {
+                    better_result = 1;
+                }
+            }
         } else {
-            // Only do something if we've not already found a double match
-            if (result->total_matches < strict_double_match) {
-                // In which case, is the forward adaptor a single match?
-                if (matches[0] >= strict_single_match) {
-                    if (matches[0] > result->matches[0]) {
-                        better_result = 1;
-                    } else if (score > result->score) {
-                        better_result = 1;
-                    }
-                // No? What about the reverse adaptor?
-                } else if (matches[1] >= strict_single_match) {
-                    if (matches[1] > result->matches[1]) {
-                        better_result = 1;
-                    } else if (score > result->score) {
-                        better_result = 1;
-                    }
-                    // Neither? Ok, well, it's a better alignment if the score is better
-                } else {
+            // No matches... well, at least store best match, if not already got a good double or single match
+            if ((result->score < strict_double_match) &&
+                (result->matches[0] < strict_single_match) &&
+                (result->matches[1] < strict_single_match)) {
                     if (score > result->score) {
                         better_result = 1;
                     }
-                }
             }
         }
-        
+    
         // Is this the best score yet?
         if (better_result == 1) {
+            printf("-- Storing best score %d, position %d, matches %d and %d\n", score, x, matches[0], matches[1]);
             result->score = score;
             result->matches[0] = matches[0];
             result->mismatches[0] = mismatches[0];
