@@ -27,12 +27,12 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "0.9"
+#define NEXTCLIP_VERSION "1.1"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
 #define TOTAL_KMER_SIZE (4 * SEPARATE_KMER_SIZE)
-#define MAX_DUPLICATES 100
+#define MAX_DUPLICATES 1000
 
 /*----------------------------------------------------------------------*
  * Structures
@@ -135,6 +135,8 @@ typedef struct {
     double percent_gc;
     long int pairs_containing_n;
     double percent_pairs_containing_n;
+    long int bases_before_clipping[NUMBER_OF_CATEGORIES];
+    long int bases_written[NUMBER_OF_CATEGORIES];
 } MPStats;
 
 /*----------------------------------------------------------------------*
@@ -219,6 +221,8 @@ void initialise_stats(MPStats* stats)
         stats->count_by_category_too_short[i] = 0;
         stats->count_by_category_relaxed_hit[i] = 0;
         stats->count_by_category_external_clipped[i] = 0;
+        stats->bases_written[i] = 0;
+        stats->bases_before_clipping[i] = 0;
 
         for (j=0; j<MAX_READ_LENGTH; j++) {
             stats->read_length_counts[i][0][j] = 0;
@@ -340,7 +344,7 @@ void usage(void)
            "    [-n | --number_of_reads] Approximate number of reads (default 20,000,000)\n" \
            "    [-o | --output_prefix] Prefix for output files\n" \
            "    [-q | --duplicates_log] PCR duplicates log filename\n" \
-           "    [-t | --trim_ends] Trim ends of non-matching category B and C reads by amount (default 19)\n" \
+           "    [-t | --trim_ends] Trim ends of non-matching reads by amount (default 19)\n" \
            "    [-x | --strict_match] Strict alignment matches (default '34,18')\n" \
            "    [-y | --relaxed_match] Relaxed alignment matches (default '32,17')\n" \
            "\nComments/suggestions to richard.leggett@tgac.ac.uk\n" \
@@ -973,6 +977,10 @@ void trim_and_write_pair(MPStats* stats, int category, FastQRead* read_one, Fast
     int l_two;
     int smallest;
     
+    // Count bases
+    stats->bases_before_clipping[category] += strlen(read_one->read);
+    stats->bases_before_clipping[category] += strlen(read_two->read);
+    
     // Trim reads
     read_one->read[read_one->trim_at_base] = 0;
     read_one->qualities[read_one->trim_at_base] = 0;
@@ -995,14 +1003,19 @@ void trim_and_write_pair(MPStats* stats, int category, FastQRead* read_one, Fast
     
     stats->read_pair_length_counts[category][smallest]++;
     
-    if ((strlen(read_one->read) < (minimum_read_size-1)) ||
-        (strlen(read_two->read) < (minimum_read_size-1))) {
+    if ((strlen(read_one->read) < (minimum_read_size)) ||
+        (strlen(read_two->read) < (minimum_read_size))) {
         stats->count_by_category_too_short[category]++;
+        if (stats->log_fp != 0) {
+            fprintf(stats->log_fp, "Too short\n");
+        }
     } else {
         stats->count_by_category_long_enough[category]++;
         // Write reads
         write_read(read_one, stats->output_fp[category][0]);
         write_read(read_two, stats->output_fp[category][1]);
+        stats->bases_written[category] += strlen(read_one->read);
+        stats->bases_written[category] += strlen(read_two->read);
     }
 
 }
@@ -1182,7 +1195,7 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     stats->gc_content[0][gc_one]++;
     stats->gc_content[1][gc_two]++;
 
-    strncpy(kmer_string, read_one->read, SEPARATE_KMER_SIZE);
+    strncpy(kmer_string, read_one->read + 20, SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(1*SEPARATE_KMER_SIZE), (read_one->read) + (read_one->read_size / 2), SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(2*SEPARATE_KMER_SIZE), read_two->read, SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(3*SEPARATE_KMER_SIZE), (read_two->read) + (read_two->read_size / 2), SEPARATE_KMER_SIZE);
@@ -1350,8 +1363,7 @@ void process_files(MPStats* stats)
                     }
                     
                     if (junction_adaptor_alignments[i].accepted == 1) {
-                        // Should not be -1
-                        if (reads[i].trim_at_base < (minimum_read_size-1)) {
+                        if (reads[i].trim_at_base < (minimum_read_size)) {
                             stats->count_too_short[i]++;
                         } else {
                             stats->count_long_enough[i]++;
@@ -1565,6 +1577,8 @@ void report_stats(MPStats* stats)
         printf("         %c pairs long enough: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_long_enough[i], stats->percent_by_category_long_enough[i]);
         printf("           %c pairs too short: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_too_short[i], stats->percent_by_category_too_short[i]);
         printf("%c external clip in 1 or both: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_external_clipped[i], stats->percent_by_category_external_clipped[i]);
+        printf("     %c bases before clipping: %ld\n", 'A'+i, stats->bases_before_clipping[i]);
+        printf("       %c total bases written: %ld\n", 'A'+i, stats->bases_written[i]);
     }
  
     printf("\n");
@@ -1687,6 +1701,7 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
     int duplicate_counts[MAX_DUPLICATES];
     int largest_count = 0;
     int i;
+    int extra_duplicates = 0;
     
     void store_duplicates(Element * node) {
         int count = node->count;
@@ -1698,6 +1713,7 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
         if (count >= MAX_DUPLICATES) {
             count = MAX_DUPLICATES - 1;
             printf("Warning: count (%d) exceeds maximum - treated as %d\n", count, MAX_DUPLICATES-1);
+            extra_duplicates += (count + 1 - MAX_DUPLICATES);
         }
         
         duplicate_counts[count]++;
@@ -1728,7 +1744,7 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
         fprintf(fp, "n\tCount\tPercent\n");
         for (i=1; ((i<MAX_DUPLICATES) && (i<=largest_count)); i++) {
             int count = (i*duplicate_counts[i]);
-            double percent = (100.0*count)/(double)stats->num_read_pairs;
+            double percent = (100.0*count)/(double)(stats->num_read_pairs - extra_duplicates);
             
             if (i == 1) {
                 count += stats->n_invalid_for_duplicate;
@@ -1739,6 +1755,10 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
         fclose(fp);
     } else {
         printf("Error: can't open duplicates file %s\n", filename);
+    }
+    
+    if (extra_duplicates > 0) {
+        printf("Note: %d pairs represented by duplicates of more than %d\n", extra_duplicates, MAX_DUPLICATES);
     }
 }
 #endif 
