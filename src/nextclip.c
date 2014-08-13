@@ -674,8 +674,6 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
     initialise_junction_adaptor_alignment(result);
     result->read_size = read->read_size;
     
-    printf("\n=> Finding adaptors...\n");
-    
     // Start searching for the transposon... x is the position in the read where we start to compare the transposon
     for (x=-adaptor_length+5; x<read->read_size-5; x++) {
         int matches[2] = {0, 0};
@@ -747,7 +745,6 @@ void find_junction_adaptors(FastQRead* read, JunctionAdaptorAlignment* result)
     
         // Is this the best score yet?
         if (better_result == 1) {
-            printf("-- Storing best score %d, position %d, matches %d and %d\n", score, x, matches[0], matches[1]);
             result->score = score;
             result->matches[0] = matches[0];
             result->mismatches[0] = mismatches[0];
