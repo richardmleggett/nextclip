@@ -80,7 +80,7 @@ if ($help) {
     print "    -queue <name> - Optionally specify scheduler queue name (default queue used if ommitted)\n";
     print "    -stage <int> - Start at pipeline stage X, where X is:\n";
     print "                      1 = clipping\n";
-    print "                      2 = aligment\n";
+    print "                      2 = alignment\n";
     print "                      3 = parsing alignment\n";
     print "                      4 = graph plotting\n";
     print "                      5 = report generation\n";
