@@ -48,6 +48,8 @@ open($parseable_fh, ">".$parseable_file) or die "ERROR: Can't open parseable fil
 
 $title =~ s/_/\\_/g;
 
+load_reference_index();
+
 if ($organism ne "Unknown") {
     $title="NextClip report for $title ($organism)"
 }
@@ -432,6 +434,10 @@ sub get_main_stats
             $attributes{"cat_a_external"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_a_external"} = $1;
             $attributes{"pc_cat_a_external"} = $2;
+        } elsif ($line =~ /A bases before clipping: (\d+)/) {
+            $attributes{"cat_a_bases_before_clipping"} = $1;
+        } elsif ($line =~ /A total bases written: (\d+)/) {
+            $attributes{"cat_a_bases_written"} = $1;
         } elsif ($line =~ /Total pairs in category B: (\d+)\t(\S+)/) {
             $attributes{"cat_b_total"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_b_total"} = $1;
@@ -448,6 +454,10 @@ sub get_main_stats
             $attributes{"cat_b_external"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_b_external"} = $1;
             $attributes{"pc_cat_b_external"} = $2;
+        } elsif ($line =~ /B bases before clipping: (\d+)/) {
+            $attributes{"cat_b_bases_before_clipping"} = $1;
+        } elsif ($line =~ /B total bases written: (\d+)/) {
+            $attributes{"cat_b_bases_written"} = $1;
         } elsif ($line =~ /Total pairs in category C: (\d+)\t(\S+)/) {
             $attributes{"cat_c_total"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_c_total"} = $1;
@@ -464,6 +474,10 @@ sub get_main_stats
             $attributes{"cat_c_external"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_c_external"} = $1;
             $attributes{"pc_cat_c_external"} = $2;
+        } elsif ($line =~ /C bases before clipping: (\d+)/) {
+            $attributes{"cat_c_bases_before_clipping"} = $1;
+        } elsif ($line =~ /C total bases written: (\d+)/) {
+            $attributes{"cat_c_bases_written"} = $1;
         } elsif ($line =~ /Total pairs in category D: (\d+)\t(\S+)/) {
             $attributes{"cat_d_total"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_d_total"} = $1;
@@ -480,6 +494,10 @@ sub get_main_stats
             $attributes{"cat_d_external"} = $1." (".$2."\\\%)";
             $attributes{"n_cat_d_external"} = $1;
             $attributes{"pc_cat_d_external"} = $2;
+        } elsif ($line =~ /D bases before clipping: (\d+)/) {
+            $attributes{"cat_d_bases_before_clipping"} = $1;
+        } elsif ($line =~ /D total bases written: (\d+)/) {
+            $attributes{"cat_d_bases_written"} = $1;
         } elsif ($line =~ /All categories too short: (\d+)\t(\S+)/) {
             $attributes{"all_too_short"} = $1." (".$2."\\\%)";
             $attributes{"n_all_too_short"} = $1;
@@ -509,7 +527,11 @@ sub get_main_stats
         log_and_screen("\nERROR: Can't read nextclip log - did something go wrong?\n");
         die;
     }
-
+    
+    $attributes{"bases_writen_abcd"} = $attributes{"cat_a_bases_written"} + $attributes{"cat_b_bases_written"} + $attributes{"cat_c_bases_written"} + $attributes{"cat_d_bases_written"};
+    $attributes{"bases_writen_abc"} = $attributes{"cat_a_bases_written"} + $attributes{"cat_b_bases_written"} + $attributes{"cat_c_bases_written"};
+    $attributes{"reference_coverage"} = $attributes{"bases_writen_abc"} / $attributes{"reference_size"};
+    
     close(NCFILE);
 }
 
@@ -607,14 +629,15 @@ sub write_overall_section
     print $latex_fh "\\begin{table}[h!]\n";
     print $latex_fh "{\\footnotesize\n";
     print $latex_fh "\\fontsize{9pt}{11pt}\\selectfont\n";
-    print $latex_fh "\\begin{tabular}{l c c c}\n";
-    print $latex_fh "{\\bf Category} & {\\bf Number of pairs} & {\\bf Too short (\$<\$ ".$attributes{"minimum_read_size"}.")} & {\\bf Long enough (\$\\ge\$ ".$attributes{"minimum_read_size"}.")} \\\\\n";
-    print $latex_fh "Adaptor in R1 and R2 (A) & ".$attributes{"cat_a_total"}." & ".$attributes{"cat_a_short"}." & ".$attributes{"cat_a_long"}." \\\\\n";
-    print $latex_fh "Adaptor in R2 only (B) & ".$attributes{"cat_b_total"}." & ".$attributes{"cat_b_short"}." & ".$attributes{"cat_b_long"}." \\\\\n";
-    print $latex_fh "Adaptor in R1 only (C) & ".$attributes{"cat_c_total"}." & ".$attributes{"cat_c_short"}." & ".$attributes{"cat_c_long"}." \\\\\n";
-    print $latex_fh "Adaptor in neither (D) & ".$attributes{"cat_d_total"}." & ".$attributes{"cat_d_short"}." & ".$attributes{"cat_d_long"}." \\\\\n";
-    print $latex_fh "All categories & ".$attributes{"number_of_pairs"}." (100\\\%) & ".$attributes{"all_too_short"}." & ".$attributes{"all_long_enough"}." \\\\\n";
-    print $latex_fh "Total usable (A,B,C) & & & ".$attributes{"total_usable"}." \\\\\n";
+    print $latex_fh "\\begin{tabular}{l c c c c}\n";
+    print $latex_fh "{\\bf Category} & {\\bf Number of pairs} & {\\bf Too short (\$<\$ ".$attributes{"minimum_read_size"}.")} & {\\bf Long enough (\$\\ge\$ ".$attributes{"minimum_read_size"}.")} & {\\bf Bases written} \\\\\n";
+    print $latex_fh "Adaptor in R1 and R2 (A) & ".$attributes{"cat_a_total"}." & ".$attributes{"cat_a_short"}." & ".$attributes{"cat_a_long"}." & ".$attributes{"cat_a_bases_written"}." \\\\\n";
+    print $latex_fh "Adaptor in R2 only (B) & ".$attributes{"cat_b_total"}." & ".$attributes{"cat_b_short"}." & ".$attributes{"cat_b_long"}." & ".$attributes{"cat_b_bases_written"}." \\\\\n";
+    print $latex_fh "Adaptor in R1 only (C) & ".$attributes{"cat_c_total"}." & ".$attributes{"cat_c_short"}." & ".$attributes{"cat_c_long"}." & ".$attributes{"cat_c_bases_written"}." \\\\\n";
+    print $latex_fh "Adaptor in neither (D) & ".$attributes{"cat_d_total"}." & ".$attributes{"cat_d_short"}." & ".$attributes{"cat_d_long"}." & ".$attributes{"cat_d_bases_written"}." \\\\\n";
+    print $latex_fh "All categories & ".$attributes{"number_of_pairs"}." (100\\\%) & ".$attributes{"all_too_short"}." & ".$attributes{"all_long_enough"}." & ".$attributes{"bases_writen_abcd"}." \\\\\n";
+    print $latex_fh "Total usable (A,B,C) & & & ".$attributes{"total_usable"}." & ".$attributes{"bases_writen_abc"};
+    printf $latex_fh " (%.1f x) \\\\\n", $attributes{"reference_coverage"};
     print $latex_fh "\\end{tabular}\n";
     print $latex_fh "}\n";
     print $latex_fh "\\end{table}\n";
@@ -734,7 +757,7 @@ sub write_duplication_section
     print $latex_fh "\\vspace{-5mm}\n";
     print $latex_fh "\\begin{figure}[h!]\n";
     print $latex_fh "\\centering\n";
-    print $latex_fh "\\includegraphics[width=.4\\linewidth]{".$library_dir."/graphs/".$library_name."_duplicates.pdf}\n";
+    print $latex_fh "\\includegraphics[width=.35\\linewidth]{".$library_dir."/graphs/".$library_name."_duplicates.pdf}\n";
     print $latex_fh "\\end{figure}\n";
 }
 
@@ -805,7 +828,32 @@ sub write_notes_section
     print $latex_fh "Maximum allowed MP insert & ".$att{"mp_limit"}." \\\\\n";
     print $latex_fh "Maximum allowed PE insert & ".$att{"pe_limit"}." \\\\\n";
     print $latex_fh "Maximum allowed tandem insert & ".$att{"tandem_limit"}." \\\\\n";
+    print $latex_fh "Reference size & ".$attributes{"reference_size"}." bp \\\\\n";
     print $latex_fh "\\end{tabular}\n";
     print $latex_fh "}\n";
     print $latex_fh "\\end{table}\n";
 }
+
+# ----------------------------------------------------------------------
+# Function: load_reference_index
+# Purpose:  Find size of reference
+# ----------------------------------------------------------------------
+sub load_reference_index
+{
+    my $reference_index = $reference.".nextclip";
+    my $total_size = 0;
+    
+    log_and_screen("Opening index file $reference_index\n");
+    log_and_screen("ERROR: nextclip_sam_parse.pl: Can't find $reference_index - have you run nextclip_index_reference.pl as per the manual?\n") unless (-e $reference_index);
+    
+    open(INDEXFILE, $reference_index) or die "Can't open reference index $reference_index\n";
+    while(<INDEXFILE>) {
+        chomp(my $line = $_);
+        my @arr = split(/\t/, $line);
+        $total_size += $arr[1];
+    }
+    close(INDEXFILE);
+
+    $attributes{"reference_size"} = $total_size;
+}
+

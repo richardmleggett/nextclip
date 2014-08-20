@@ -10,10 +10,11 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Cwd;
+use File::Basename;
 
-# ==================== CHANGE AS APPROPRIATE FOR YOUR ENVIRONMENT ====================
-my $script_dir="/Users/leggettr/Downloads/nextclip-master/scripts";
-my $nextclip_tool="/Users/leggettr/Downloads/nextclip-master/bin/nextclip";
+# ============= CAN BE HARDCODED PATHS IF NECESSARY FOR YOUR ENVIRONMENT =============
+my $script_dir;
+my $nextclip_tool="nextclip";
 # ====================================================================================
 
 # Command line options
@@ -32,6 +33,10 @@ my $read_two;
 my $reference;
 my $minimum_contig_alignment_size;
 my $number_of_pairs;
+my $min_length=25;
+my $trim_ends=0;
+my $nextclip_options;
+my $start_stage=0;
 
 # We'll work these out later
 my $logdir;
@@ -46,6 +51,7 @@ my $read_length;
 my $machine;
 my $log_filename;
 my %job_id_table;
+my $queue;
 
 # Get command line options
 &GetOptions(
@@ -55,19 +61,30 @@ my %job_id_table;
 'nextclip:s'   => \$nextclip_tool,
 'scriptdir:s'  => \$script_dir,
 'scheduler:s'  => \$scheduler,
+'queue:s'      => \$queue,
+'stage:i'      => \$start_stage,
 'help|h'       => \$help
 );
 
+print "\nNextClip LMP Analysis v1.2\n\n";
+
 # Help message
 if ($help) {
-    print "\nnextclip_lmp_analysis\n\n";
     print "Pipeline for alignment and analysis of LMP libraries with NextClip\n\n";
     print "Syntax: nextclip_lmp_analysis.pl -config <file> [options]\n\n";
     print "Options\n";
     print "    -config <file> - Specify name of configuration file\n";
     print "    -scheduler <name> - Specify job scheduler to use (default NONE)\n";
     print "    -bwathreads <int> - Specify number of threads to use for BWA (default 1)\n";
-    print "    -minmapq <int> - Specify minimum mapping quality (default 10)\n\n";
+    print "    -minmapq <int> - Specify minimum mapping quality (default 10)\n";
+    print "    -queue <name> - Optionally specify scheduler queue name (default queue used if ommitted)\n";
+    print "    -stage <int> - Start at pipeline stage X, where X is:\n";
+    print "                      1 = clipping\n";
+    print "                      2 = aligment\n";
+    print "                      3 = parsing alignment\n";
+    print "                      4 = graph plotting\n";
+    print "                      5 = report generation\n";
+    print "\n";
     exit(0);
 }
 
@@ -81,22 +98,43 @@ die "Error: Scheduler must be either LSF, PBS or none\n" if (($scheduler ne "NON
 die "Error: BWA threads must be between 1 and 32\n" if (($bwa_threads <1) || ($bwa_threads > 32));
 die "Error: minmapq must be between 0 and 255\n" if (($min_map_q < 0) || ($min_map_q > 255));
 
+# Check script dir
+if (! defined $script_dir) {
+    $script_dir=dirname($0);
+}
+
 # Make sure there is a / at the end of script_dir
 if ($script_dir !~ /\/$/) {
     $script_dir = $script_dir."/";
 }
 
 # Main stages of pipeline
-print "\nNextClip LMP Analysis\n\n";
+print "Scripts dir is $script_dir\n";
 
 read_config_file($configure_file);
 check_software();
 find_read_length_and_machine($read_one);
-run_clipping();
-run_alignment();
-parse_alignment();
-plot_graphs();
-make_report();
+
+if ($start_stage <= 1) {
+    run_clipping();
+}
+
+if ($start_stage <= 2) {
+    run_alignment();
+}
+
+if ($start_stage <= 3) {
+    parse_alignment();
+}
+
+if ($start_stage <= 4) {
+    plot_graphs();
+}
+
+if ($start_stage <= 5) {
+    make_report();
+}
+
 log_print("\n");
 exit(0);
 
@@ -129,7 +167,6 @@ sub check_software
     my $tex_found = 0;
     my $line;
 
-    die "Error: can't find NextClip (path specified $nextclip_tool)!" unless (-e $nextclip_tool);
     die "Error: can't find scripts directory (path specified $script_dir)!" unless (-d $script_dir);
 
     foreach $line (@nextclip_output) {
@@ -139,6 +176,8 @@ sub check_software
             log_and_screen $line, "\n";
         }
     }
+
+    die "Error: can't find NextClip tool!" unless ($nextclip_found == 1);
     
     foreach $line (@bwa_output) {
         if ($line =~ /^Version: (\S+)/) {
@@ -219,6 +258,12 @@ sub read_config_file
                 $minimum_contig_alignment_size = $arr[1];
             } elsif ($arr[0] eq "number_of_pairs") {
                 $number_of_pairs = $arr[1];
+            } elsif ($arr[0] eq "min_length") {
+                $min_length = $arr[1];
+            } elsif ($arr[0] eq "trim_ends") {
+                $trim_ends = $arr[1];
+            } elsif ($arr[0] eq "nextclip_options") {
+                $nextclip_options = $arr[1];
             }
         }
     }
@@ -271,17 +316,22 @@ sub read_config_file
     
     # Output variables
     print "\n";
-    log_and_screen "  Library name: $library_name\n";
-    log_and_screen "      Organism: $organism\n";
-    log_and_screen "    Output dir: $output_dir\n";
-    log_and_screen "        Read 1: $read_one\n";
-    log_and_screen "        Read 2: $read_two\n";
-    log_and_screen "     Reference: $reference\n";
-    log_and_screen "Read 1 clipped: $read_one_clipped\n";
-    log_and_screen "Read 2 clipped: $read_two_clipped\n";
-    log_and_screen "Read 1 noadapt: $read_one_noadapt\n";
-    log_and_screen "Read 2 noadapt: $read_two_noadapt\n";
-    log_and_screen "      Log file: $log_filename\n";
+    log_and_screen "    Library name: $library_name\n";
+    log_and_screen "        Organism: $organism\n";
+    log_and_screen "      Output dir: $output_dir\n";
+    log_and_screen "          Read 1: $read_one\n";
+    log_and_screen "          Read 2: $read_two\n";
+    log_and_screen "       Reference: $reference\n";
+    log_and_screen "  Read 1 clipped: $read_one_clipped\n";
+    log_and_screen "  Read 2 clipped: $read_two_clipped\n";
+    log_and_screen "  Read 1 noadapt: $read_one_noadapt\n";
+    log_and_screen "  Read 2 noadapt: $read_two_noadapt\n";
+    log_and_screen "        Log file: $log_filename\n";
+    log_and_screen "      Min length: $min_length\n";
+    log_and_screen "       Trim ends: $trim_ends\n";
+    if (defined $nextclip_options) {
+        log_and_screen "Nextclip options: $nextclip_options\n";
+    }
     log_and_screen "\n";
 }
 
@@ -330,6 +380,10 @@ sub submit_pbs
     my $memory = $_[5];
     my $cwd = getcwd();
     my $system_command = "echo \"cd ".$cwd." ; ".$command."\" | qsub -V -l ncpus=".$threads.",mem=".$memory."mb,walltime=4800:00:00 -j oe -o ".$log; #." -N ".$this_id;
+
+    if (defined $queue) {
+        $system_command = $system_command." -q ".$queue;
+    }
     
     if ($previous_id ne "") {
         if ($previous_id =~ /\*$/) {
@@ -370,6 +424,11 @@ sub submit_lsf
     my $system_command;
 
     $system_command="bsub -oo ".$log." -J ".$this_id;
+    
+    if (defined $queue) {
+        $system_command = $system_command." -q ".$queue;
+    }
+    
     if ($previous_id ne "") {
         $system_command = $system_command." -w \"ended(".$previous_id.")\"";
     }
@@ -424,10 +483,14 @@ sub submit_job
 sub run_clipping
 {
     my $num_pairs = $number_of_pairs * 2;
-    my $command=$nextclip_tool." --input_one ".$read_one." --input_two ".$read_two." --output_prefix ".$readsdir."/".$library_name." --log ".$logdir."/nextclip_alignment.log --min_length 25 --number_of_reads ".$num_pairs." --trim_ends 0"; # --duplicates_log ".$logdir."/nextclip_duplicates.log";
+    my $command=$nextclip_tool." --input_one ".$read_one." --input_two ".$read_two." --output_prefix ".$readsdir."/".$library_name." --log ".$logdir."/nextclip_alignment.log --min_length ".$min_length." --number_of_reads ".$num_pairs." --trim_ends ".$trim_ends;
     my $logfile=$logdir."/nextclip.log";
     my $previous="";
     my $job_id=$library_name."clip";
+
+    if (defined $nextclip_options) {
+        $command = $command." ".$nextclip_options;
+    }
     
     submit_job($command, $job_id, $logfile, $previous, 1, 4000);
 }
