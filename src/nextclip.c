@@ -284,8 +284,8 @@ void initialise_junction_adaptor_alignment(JunctionAdaptorAlignment* result)
  *----------------------------------------------------------------------*/
 void initialise_generic_adaptor_alignment(GenericAdaptorAlignment* result)
 {
-    result->score = -1;
-    result->position = -1;
+    result->score = 0;
+    result->position = 0;
     result->alignment_length = 0;
     result->identity = 0;
     result->mismatches = 0;
@@ -875,6 +875,11 @@ int get_read(FILE* fp, FastQRead* read)
     if (!fgets(read->qualities, MAX_READ_LENGTH, fp)) {
         got_read = 0;
     }
+    
+    if (strlen(read->read) < minimum_read_size) {
+        printf("Warning: read shorter than minimum read size (%d)\n", minimum_read_size);
+        got_read = 0;
+    }
 
     if (got_read == 1) {
         chomp(read->read_header);
@@ -1175,8 +1180,8 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     Element* e;
     boolean is_duplicate = false;
     boolean found = false;
-    int gc_one;
-    int gc_two;
+    int gc_one = 0;
+    int gc_two = 0;
     
     if ((!check_valid_bases_and_gc_content(read_one->read, &gc_one)) || (!check_valid_bases_and_gc_content(read_two->read, &gc_two))) {
         stats->pairs_containing_n++;
@@ -1189,8 +1194,13 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     stats->at_bases+=(read_one->read_size - gc_one);
     stats->at_bases+=(read_two->read_size - gc_two);
     
-    gc_one=(gc_one*100)/read_one->read_size;
-    gc_two=(gc_two*100)/read_two->read_size;
+    if (gc_one > 0) {
+        gc_one=(gc_one*100)/read_one->read_size;
+    }
+    
+    if (gc_two > 0) {
+        gc_two=(gc_two*100)/read_two->read_size;
+    }
     
     stats->gc_content[0][gc_one]++;
     stats->gc_content[1][gc_two]++;
@@ -1441,8 +1451,12 @@ void calculate_stats(MPStats* stats)
         exit(2);
     }
     
-    stats->percent_pairs_containing_n = (100.0 * (double)stats->pairs_containing_n) / (double)stats->num_read_pairs;
-        
+    if (stats->pairs_containing_n > 0) {
+        stats->percent_pairs_containing_n = (100.0 * (double)stats->pairs_containing_n) / (double)stats->num_read_pairs;
+    } else {
+        stats->percent_pairs_containing_n = 0;
+    }
+    
     for (i=0; i<2; i++) {
         if (stats->count_adaptor_found[i] > 0) {
             stats->percent_adaptor_found[i] = (100.0 * (double)stats->count_adaptor_found[i]) / (double)stats->num_read_pairs;
@@ -1521,10 +1535,23 @@ void calculate_stats(MPStats* stats)
     
     // Total usable is categories A, B, C, E which are long enough
     stats->total_usable = stats->count_by_category_long_enough[0] + stats->count_by_category_long_enough[1] + stats->count_by_category_long_enough[2] + stats->count_by_category_long_enough[4];
-    stats->percent_usable = (100.0 * (double)stats->total_usable) / (double)stats->num_read_pairs;
+    if (stats->total_usable > 0) {
+        stats->percent_usable = (100.0 * (double)stats->total_usable) / (double)stats->num_read_pairs;
+    } else {
+        stats->percent_usable = 0;
+    }
     
-    stats->percent_total_too_short = (100.0 * (double)stats->total_too_short) / (double)stats->num_read_pairs;
-    stats->percent_total_long_enough = (100.0 * (double)stats->total_long_enough) / (double)stats->num_read_pairs;
+    if (stats->total_too_short > 0) {
+        stats->percent_total_too_short = (100.0 * (double)stats->total_too_short) / (double)stats->num_read_pairs;
+    } else {
+        stats->percent_total_too_short = 0;
+    }
+
+    if (stats->total_long_enough > 0) {
+        stats->percent_total_long_enough = (100.0 * (double)stats->total_long_enough) / (double)stats->num_read_pairs;
+    } else {
+        stats->percent_total_long_enough = 0;
+    }
     
     if (stats->duplicates_not_written > 0) {
         stats->percent_duplicates_not_written = (100.0 * (double)stats->duplicates_not_written) / (double)stats->num_read_pairs;
@@ -1534,7 +1561,13 @@ void calculate_stats(MPStats* stats)
     
     // GC content
     printf("GC bases: %ld  AT bases: %ld\n", stats->gc_bases, stats->at_bases);
-    stats->percent_gc = (100.0 * stats->gc_bases) / (stats->gc_bases + stats->at_bases);
+    if (stats->gc_bases == 0) {
+        stats->percent_gc = 0;
+    } else if (stats->at_bases == 0) {
+        stats->percent_gc = 100;
+    } else {
+        stats->percent_gc = (100.0 * stats->gc_bases) / (stats->gc_bases + stats->at_bases);
+    }
 }
 
 /*----------------------------------------------------------------------*
@@ -1703,6 +1736,11 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
     int i;
     int extra_duplicates = 0;
     
+    if (stats->num_read_pairs <= 1) {
+        printf("Error: Number of read pairs is too low!\n");
+        exit(1);
+    }
+    
     void store_duplicates(Element * node) {
         int count = node->count;
 
@@ -1735,16 +1773,29 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
     
     hash_table_traverse(&store_duplicates, duplicate_hash);
     
-    stats->percent_duplicates=(double)((100.0*stats->n_duplicates)/(double)stats->num_read_pairs);
+    if (stats->n_duplicates > 0 ) {
+        stats->percent_duplicates = (double)((100.0*stats->n_duplicates)/(double)stats->num_read_pairs);
+    } else {
+        stats->percent_duplicates = 0;
+    }
 
     sprintf(filename, "%s_duplicates.txt", stats->output_prefix);
+
+    if (stats->num_read_pairs == extra_duplicates) {
+        printf("Error: number of read pairs is equal to extra duplicates!\n");
+        exit(1);
+    }
     
     fp = fopen(filename, "w");
     if (fp) {
         fprintf(fp, "n\tCount\tPercent\n");
         for (i=1; ((i<MAX_DUPLICATES) && (i<=largest_count)); i++) {
             int count = (i*duplicate_counts[i]);
-            double percent = (100.0*count)/(double)(stats->num_read_pairs - extra_duplicates);
+            double percent = 0;
+            
+            if (count > 0) {
+                percent = (100.0*count)/(double)(stats->num_read_pairs - extra_duplicates);
+            }
             
             if (i == 1) {
                 count += stats->n_invalid_for_duplicate;
