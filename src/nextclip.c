@@ -345,6 +345,8 @@ void size_hashtable(int* n_return, int* b_return)
     memory_meg = memory_meg * NUMBER_OF_HASHES;
 #endif
     
+    memory_meg += 256;
+    
     printf("                n: %d\n", n);
     printf("                b: %d\n", b);
     printf("          Entries: %d\n", entries);

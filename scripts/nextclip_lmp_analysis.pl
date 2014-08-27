@@ -433,7 +433,9 @@ sub submit_lsf
         $system_command = $system_command." -w \"ended(".$previous_id.")\"";
     }
     if ($threads > 1) {
-        $system_command = $system_command." -R \"span[hosts=1]\" -n ".$threads;
+        $system_command = $system_command." -R \"rusage[mem=".$memory."] span[hosts=1]\" -n ".$threads;
+    } else {
+        $system_command = $system_command." -R \"rusage[mem=".$memory."]\"";
     }
     $system_command=$system_command." \"".$command."\"";
     system($system_command);
