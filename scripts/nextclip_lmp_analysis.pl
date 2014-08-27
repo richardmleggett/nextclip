@@ -405,8 +405,7 @@ sub submit_pbs
         }
     }
     
-    log_print "Executing $system_command\n";
-    print "PBS command: $system_command\n\n";
+    log_print "PBS command: $system_command\n\n";
     my $newid = readpipe($system_command);
     chomp ($newid);
     $job_id_table{$this_id} = $newid;
@@ -438,6 +437,7 @@ sub submit_lsf
         $system_command = $system_command." -R \"rusage[mem=".$memory."]\"";
     }
     $system_command=$system_command." \"".$command."\"";
+    log_print "LSF command: $system_command\n\n";
     system($system_command);
 }
 
