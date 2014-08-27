@@ -66,7 +66,7 @@ my $queue;
 'help|h'       => \$help
 );
 
-print "\nNextClip LMP Analysis v1.2\n\n";
+print "\nNextClip LMP Analysis v1.3\n\n";
 
 # Help message
 if ($help) {
