@@ -24,3 +24,4 @@ To hear about updates to NextClip, please follow @richardmleggett on Twitter: ht
 - The scripts directory is found automatically - no need to set it during installation.
 - Moved PCR duplicate kmer offset to avoid lower quality bases at start of read. Should provide slightly more accurate estimates of PCR duplication.
 - Queue name can be specified when running with LSF.
+- Reduced size of hash table used to store PCR duplicates.
