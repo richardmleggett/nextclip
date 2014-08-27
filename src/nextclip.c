@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "1.2"
+#define NEXTCLIP_VERSION "1.3"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
@@ -156,6 +156,7 @@ int remove_duplicates = 0;
 int num_categories = NUMBER_OF_CATEGORIES;
 int trim_ends = 19;
 int approximate_reads = 20000000;
+int output_memory_requirements = false;
 
 /*
  * Single hash option algorithm
@@ -324,6 +325,42 @@ char* reverse_compliment(char* fwd, char* rev)
 }
 
 /*----------------------------------------------------------------------*
+ * Function:   size_hashtable
+ * Purpose:    Calculate memory required for hashtable
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void size_hashtable(int* n_return, int* b_return)
+{
+    double utilisation = 0.8;
+    double required_entries = approximate_reads / utilisation;
+    int b = 100;
+    double c = log(required_entries/b)/log(2);
+    int n = ceil(c);
+    int entries = pow(2.0, (double)n)*b;
+    long int memory_bytes = entries*sizeof(Element);
+    long int memory_meg = memory_bytes/(1024*1024);
+
+#ifdef USE_MULTIPLE_HASHES
+    memory_meg = memory_meg * NUMBER_OF_HASHES;
+#endif
+    
+    printf("                n: %d\n", n);
+    printf("                b: %d\n", b);
+    printf("          Entries: %d\n", entries);
+    printf("       Entry size: %ld\n", sizeof(Element));
+    
+#ifdef USE_MULTIPLE_HASHES
+    printf(" Number of tables: %d\n", NUMBER_OF_HASHES);
+#endif
+
+    printf("  Memory required: %ld MB\n\n", memory_meg);
+    
+    *n_return = n;
+    *b_return = b;
+}
+
+/*----------------------------------------------------------------------*
  * Function:   usage
  * Purpose:    Report program usage.
  * Parameters: None
@@ -344,6 +381,7 @@ void usage(void)
            "    [-n | --number_of_reads] Approximate number of reads (default 20,000,000)\n" \
            "    [-o | --output_prefix] Prefix for output files\n" \
            "    [-q | --duplicates_log] PCR duplicates log filename\n" \
+           "    [-r | --memory_requirements] Output memory requirements for specified number of reads\n" \
            "    [-t | --trim_ends] Trim ends of non-matching reads by amount (default 19)\n" \
            "    [-x | --strict_match] Strict alignment matches (default '34,18')\n" \
            "    [-y | --relaxed_match] Relaxed alignment matches (default '32,17')\n" \
@@ -402,6 +440,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         {"number_of_reads", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
         {"duplicates_log", required_argument, NULL, 'q'},
+        {"memory_requirements", no_argument, NULL, 'r'},
         {"adaptor_sequence", required_argument, NULL, 's'},
         {"trim_ends", required_argument, NULL, 't'},
         {"strict_match", required_argument, NULL, 'x'},
@@ -417,7 +456,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:q:s:t:x:y:z:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:q:rs:t:x:y:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case 'd':
@@ -479,6 +518,9 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
                 }
                 strcpy(stats->duplicates_log_filename, optarg);
                 break;
+            case 'r':
+                output_memory_requirements = true;
+                break;
             case 's':
                 if (optarg==NULL) {
                     printf("Error: [-s | --adaptor_sequence] option requires an argument.\n");
@@ -520,6 +562,12 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
                 exit(1);
                 break;
         }
+    }
+    
+    if (output_memory_requirements == true) {
+        int n, b;
+        size_hashtable(&n, &b);
+        exit(0);
     }
 
     if (use_category_e == 1) {
@@ -1822,24 +1870,16 @@ void calculate_pcr_duplicate_stats(MPStats* stats)
  *----------------------------------------------------------------------*/
 void create_hash_table(void)
 {
-    double utilisation = 0.8;
-    double required_entries = approximate_reads / utilisation;
-    int b = 100;
-    double c = log(required_entries/b)/log(2);
-    int n = ceil(c);
-    int entries = pow(2.0, (double)n)*b;
-    long int memory = entries*sizeof(Element);
+    int b = 0;
+    int n = 0;
+
+    size_hashtable(&n, &b);
+
+    printf("Creating hash tables for duplicate storage...\n");
+
 #ifdef USE_MULTIPLE_HASHES
     int i;
 
-    printf("Creating hash tables for duplicate storage...\n");
-    printf("                n: %d\n", n);
-    printf("                b: %d\n", b);
-    printf("          Entries: %d\n", entries);
-    printf("       Entry size: %ld\n", sizeof(Element));
-    printf(" Number of tables: %d\n", NUMBER_OF_HASHES);
-    printf("  Memory required: %ld MB\n\n", (memory/(1024*1024))*NUMBER_OF_HASHES);
-    
     for (i=0; i<NUMBER_OF_HASHES; i++) {
         kmer_hashes[i] = hash_table_new(n, b, 25, TOTAL_KMER_SIZE);
         hash_table_print_stats(kmer_hashes[i]);
@@ -1847,13 +1887,6 @@ void create_hash_table(void)
         kmer_offsets[i][1] = -1;
     }
 #else
-    printf("Creating hash table for duplicate storage...\n");
-    printf("                n: %d\n", n);
-    printf("                b: %d\n", b);
-    printf("          Entries: %d\n", entries);
-    printf("       Entry size: %ld\n", sizeof(Element));
-    printf("  Memory required: %ld MB\n\n", memory/(1024*1024));
-    
     duplicate_hash = hash_table_new(n, b, 25, TOTAL_KMER_SIZE);
     
     if (duplicate_hash == NULL) {

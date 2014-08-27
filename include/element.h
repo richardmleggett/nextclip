@@ -42,7 +42,7 @@
 // We provide a smaller version of element for use in count_kmers
 typedef struct {
  	BinaryKmer kmer;
-    uint32_t filler[4];
+    //uint32_t filler[4];
     uint16_t count;
     uint16_t flags;
 } Element;

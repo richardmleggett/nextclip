@@ -487,12 +487,23 @@ sub run_clipping
     my $logfile=$logdir."/nextclip.log";
     my $previous="";
     my $job_id=$library_name."clip";
+    my $memory=4000;
 
     if (defined $nextclip_options) {
         $command = $command." ".$nextclip_options;
     }
+
+    # Find memory requirements
+    my @output = readpipe($nextclip_tool." --number_of_reads ".$num_pairs." --memory_requirements");
+    foreach my $line (@output) {
+        if ($line =~ /Memory required: (\d+) MB/) {
+            $memory = $1;
+            log_and_screen "Queried required memory for NextClip, received: $memory\n";
+        }
+    }
     
-    submit_job($command, $job_id, $logfile, $previous, 1, 4000);
+    log_and_screen "Memory required for NextClip: $memory\n";
+    submit_job($command, $job_id, $logfile, $previous, 1, $memory);
 }
 
 # Run BWA
