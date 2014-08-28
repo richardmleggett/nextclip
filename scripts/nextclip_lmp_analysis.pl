@@ -350,8 +350,8 @@ sub find_read_length_and_machine
     log_and_screen "     Read length: $read_length\n";
     log_and_screen "    Machine name: $machine\n";
 
-    if ($start_stage <= 1) {
-        if (not defined $number_of_pairs) {
+    if (not defined $number_of_pairs) {
+        if ($start_stage <= 1) {
             print "Counting number of input pairs...\n\n";
             my $result = readpipe("wc -l ".$read_one); 
             my @arr = split(' ', $result);
@@ -363,6 +363,8 @@ sub find_read_length_and_machine
                 log_and_screen "Something went wrong with line count - defaulting to 100000000\n";
                 $number_of_pairs = 100000000;
             }
+        } else {
+            $number_of_pairs = 0;
         }
     }
 
