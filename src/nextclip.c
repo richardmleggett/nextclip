@@ -27,12 +27,16 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "1.3"
+#define NEXTCLIP_VERSION "1.3.1"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
 #define TOTAL_KMER_SIZE (4 * SEPARATE_KMER_SIZE)
 #define MAX_DUPLICATES 1000
+#define FIRST_KMER_OFFSET 20
+
+// The kmer-based PCR duplication assessment won't work so well with very small reads, so have set this limit
+#define MINIMUM_INPUT_READ_SIZE 64
 
 /*----------------------------------------------------------------------*
  * Structures
@@ -926,8 +930,8 @@ int get_read(FILE* fp, FastQRead* read)
         got_read = 0;
     }
     
-    if (strlen(read->read) < minimum_read_size) {
-        printf("Warning: read shorter than minimum read size (%d)\n", minimum_read_size);
+    if (strlen(read->read) < MINIMUM_INPUT_READ_SIZE) {
+        printf("Warning: read shorter than minimum read size (%d) - ignoring\n", MINIMUM_INPUT_READ_SIZE);
         got_read = 0;
     }
 
@@ -1258,7 +1262,7 @@ boolean check_pcr_duplicates(FastQRead* read_one, FastQRead* read_two, MPStats* 
     stats->gc_content[0][gc_one]++;
     stats->gc_content[1][gc_two]++;
 
-    strncpy(kmer_string, read_one->read + 20, SEPARATE_KMER_SIZE);
+    strncpy(kmer_string, read_one->read + FIRST_KMER_OFFSET, SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(1*SEPARATE_KMER_SIZE), (read_one->read) + (read_one->read_size / 2), SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(2*SEPARATE_KMER_SIZE), read_two->read, SEPARATE_KMER_SIZE);
     strncpy(kmer_string+(3*SEPARATE_KMER_SIZE), (read_two->read) + (read_two->read_size / 2), SEPARATE_KMER_SIZE);
@@ -1446,8 +1450,7 @@ void process_files(MPStats* stats)
                 stats->duplicates_not_written++;
             }
         } else if (n_reads == 1) {
-            printf("Error: Only managed to get one read!\n");
-            exit(2);            
+            printf("Warning: Only managed to get one read - pair ignored\n");
         }
     }
     
