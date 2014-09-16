@@ -1096,6 +1096,9 @@ void check_read_ids(MPStats* stats, FastQRead* read_one, FastQRead* read_two)
         
         if (read_one->read_header[p] <= ' ') {
             break;
+        }
+        else if (read_one->read_header[p] == '/') {
+            break;
         } else {
             p++;
         }
