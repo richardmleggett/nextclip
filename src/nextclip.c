@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <math.h>
 #include <time.h>
+#include <zlib.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -88,7 +89,7 @@ typedef struct {
 
 typedef struct {
     int read_length;
-    FILE* input_fp[2];
+    gzFile input_fp[2];
     FILE* output_fp[NUMBER_OF_CATEGORIES][2];
     FILE* log_fp;
     FILE* duplicates_fp;
@@ -910,23 +911,23 @@ void log_output_alignment(MPStats* stats, FastQRead* read, JunctionAdaptorAlignm
  *             read -> structure to read into
  * Returns:    None
  *----------------------------------------------------------------------*/
-int get_read(FILE* fp, FastQRead* read)
+int get_read(gzFile fp, FastQRead* read)
 {
     int got_read = 1;
     
-    if (!fgets(read->read_header, 1024, fp)) {
+    if (!gzgets(fp, read->read_header, 1024)) {
         got_read = 0;
     }
 
-    if (!fgets(read->read, MAX_READ_LENGTH, fp)) {
+    if (!gzgets(fp, read->read, MAX_READ_LENGTH)) {
         got_read = 0;
     }
     
-    if (!fgets(read->quality_header, 1024, fp)) {
+    if (!gzgets(fp, read->quality_header, 1024)) {
         got_read = 0;
     }
     
-    if (!fgets(read->qualities, MAX_READ_LENGTH, fp)) {
+    if (!gzgets(fp, read->qualities, MAX_READ_LENGTH)) {
         got_read = 0;
     }
     
@@ -1328,7 +1329,7 @@ void process_files(MPStats* stats)
     // Open input files
     for (i=0; i<2; i++) {
         printf("Opening input filename %s\n", stats->input_filenames[i]);
-        stats->input_fp[i] = fopen(stats->input_filenames[i], "r");
+        stats->input_fp[i] = gzopen(stats->input_filenames[i], "r");
         if (!stats->input_fp[i]) {
             printf("Error: can't open file %s\n", stats->input_filenames[i]);
             exit(2);
@@ -1350,7 +1351,7 @@ void process_files(MPStats* stats)
     }
     
     // Read each entry in FASTQ files
-    while (!feof(stats->input_fp[0])) {
+    while (!gzeof(stats->input_fp[0])) {
         // Go next pair of reads
         int n_reads = 0;
         int category = -1;
@@ -1456,7 +1457,7 @@ void process_files(MPStats* stats)
     
     // Close files
     for (i=0; i<2; i++) {        
-        fclose(stats->input_fp[i]);
+        gzclose(stats->input_fp[i]);
     }
     
     for (i=0; i<num_categories; i++) {
