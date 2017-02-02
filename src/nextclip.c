@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "1.3.1"
+#define NEXTCLIP_VERSION "1.3.2"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
@@ -161,6 +161,7 @@ int num_categories = NUMBER_OF_CATEGORIES;
 int trim_ends = 19;
 int approximate_reads = 20000000;
 int output_memory_requirements = false;
+int duplicate_only_mode = false;
 
 /*
  * Single hash option algorithm
@@ -386,12 +387,13 @@ void usage(void)
            "    [-m | --min_length] Minimum usable read length (default 25)\n" \
            "    [-n | --number_of_reads] Approximate number of reads (default 20,000,000)\n" \
            "    [-o | --output_prefix] Prefix for output files\n" \
+           "    [-p | --only_duplicates] Only remove duplicates, don't trim\n" \
            "    [-q | --duplicates_log] PCR duplicates log filename\n" \
            "    [-r | --memory_requirements] Output memory requirements for specified number of reads\n" \
            "    [-t | --trim_ends] Trim ends of non-matching reads by amount (default 19)\n" \
            "    [-x | --strict_match] Strict alignment matches (default '34,18')\n" \
            "    [-y | --relaxed_match] Relaxed alignment matches (default '32,17')\n" \
-           "\nComments/suggestions to richard.leggett@tgac.ac.uk\n" \
+           "\nComments/suggestions to richard.leggett@earlham.ac.uk\n" \
            "\n");
 }
 
@@ -445,6 +447,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         {"min_length", required_argument, NULL, 'm'},
         {"number_of_reads", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
+        {"only_duplicates", no_argument, NULL, 'p'},
         {"duplicates_log", required_argument, NULL, 'q'},
         {"memory_requirements", no_argument, NULL, 'r'},
         {"adaptor_sequence", required_argument, NULL, 's'},
@@ -462,7 +465,7 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:q:rs:t:x:y:z:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "dehi:j:l:m:n:o:pq:rs:t:x:y:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case 'd':
@@ -516,7 +519,11 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
                     exit(1);
                 }
                 strcpy(stats->output_prefix, optarg);
-                break;                
+                break;
+            case 'p':
+                duplicate_only_mode = true;
+                remove_duplicates=1;
+                break;
             case 'q':
                 if (optarg==NULL) {
                     printf("Error: [-q | --duplicates_log] option requires an argument.\n");
@@ -1041,10 +1048,12 @@ void trim_and_write_pair(MPStats* stats, int category, FastQRead* read_one, Fast
     stats->bases_before_clipping[category] += strlen(read_two->read);
     
     // Trim reads
-    read_one->read[read_one->trim_at_base] = 0;
-    read_one->qualities[read_one->trim_at_base] = 0;
-    read_two->read[read_two->trim_at_base] = 0;
-    read_two->qualities[read_two->trim_at_base] = 0;
+    if (duplicate_only_mode == false) {
+        read_one->read[read_one->trim_at_base] = 0;
+        read_one->qualities[read_one->trim_at_base] = 0;
+        read_two->read[read_two->trim_at_base] = 0;
+        read_two->qualities[read_two->trim_at_base] = 0;
+    }
     
     // Keep count
     stats->count_by_category[category]++;
@@ -1383,66 +1392,70 @@ void process_files(MPStats* stats)
                     fprintf(stats->log_fp, "==================== New read pair ====================\n");
                 }
                 
-                for (i=0; i<2; i++) {
-                    // Find junction adaptor
-                    find_junction_adaptors(&reads[i], &junction_adaptor_alignments[i]);
+                if (duplicate_only_mode == true) {
+                    category = 3; // D
+                } else {
+                    for (i=0; i<2; i++) {
+                        // Find junction adaptor
+                        find_junction_adaptors(&reads[i], &junction_adaptor_alignments[i]);
 
-                    // Look for external adaptor
-                    find_sequence_in_read(&reads[i], external_adaptors[i], &external_adaptor_alignments[i]);
+                        // Look for external adaptor
+                        find_sequence_in_read(&reads[i], external_adaptors[i], &external_adaptor_alignments[i]);
 
-                    // Display log information
-                    if (stats->log_fp != 0) {
-                        log_output_alignment(stats, &reads[i], &junction_adaptor_alignments[i], &external_adaptor_alignments[i]);
-                    }
-                                    
-                    // If junction adaptor found...
-                    if (junction_adaptor_alignments[i].accepted == 1) {
-                        // Count
-                        stats->count_adaptor_found[i]++;
-                        
-                        // Trim
-                        reads[i].trim_at_base = junction_adaptor_alignments[i].read_start;
-                        reads[i].trimmed_for_junction_adaptor = true;
-                    } else {
-                        if (trim_ends > 0) {
-                            reads[i].trim_at_base = reads[i].read_size - trim_ends;
+                        // Display log information
+                        if (stats->log_fp != 0) {
+                            log_output_alignment(stats, &reads[i], &junction_adaptor_alignments[i], &external_adaptor_alignments[i]);
                         }
-                    }
+                                        
+                        // If junction adaptor found...
+                        if (junction_adaptor_alignments[i].accepted == 1) {
+                            // Count
+                            stats->count_adaptor_found[i]++;
+                            
+                            // Trim
+                            reads[i].trim_at_base = junction_adaptor_alignments[i].read_start;
+                            reads[i].trimmed_for_junction_adaptor = true;
+                        } else {
+                            if (trim_ends > 0) {
+                                reads[i].trim_at_base = reads[i].read_size - trim_ends;
+                            }
+                        }
 
-                    // If external adaptor found...?
-                    if (external_adaptor_alignments[i].accepted == 1) {
-                        if (external_adaptor_alignments[i].read_start < reads[i].trim_at_base) {
-                            reads[i].trim_at_base = external_adaptor_alignments[i].read_start;
-                            reads[i].trimmed_for_external_adaptor = true;
-                            if (reads[i].trimmed_for_junction_adaptor) {
-                                if (stats->log_fp != 0) {
-                                    fprintf(stats->log_fp, "                  EXTERNAL ADAPTOR BEFORE JUNCTION ADAPTOR\n");
+                        // If external adaptor found...?
+                        if (external_adaptor_alignments[i].accepted == 1) {
+                            if (external_adaptor_alignments[i].read_start < reads[i].trim_at_base) {
+                                reads[i].trim_at_base = external_adaptor_alignments[i].read_start;
+                                reads[i].trimmed_for_external_adaptor = true;
+                                if (reads[i].trimmed_for_junction_adaptor) {
+                                    if (stats->log_fp != 0) {
+                                        fprintf(stats->log_fp, "                  EXTERNAL ADAPTOR BEFORE JUNCTION ADAPTOR\n");
+                                    }
                                 }
                             }
+                            
+                            if (junction_adaptor_alignments[i].accepted == 1) {
+                                stats->count_adaptor_and_external_found[i]++;
+                            } else {
+                                stats->count_external_only_found[i]++;
+                            }
+                        
                         }
                         
                         if (junction_adaptor_alignments[i].accepted == 1) {
-                            stats->count_adaptor_and_external_found[i]++;
+                            if (reads[i].trim_at_base < (minimum_read_size)) {
+                                stats->count_too_short[i]++;
+                            } else {
+                                stats->count_long_enough[i]++;
+                            }
                         } else {
-                            stats->count_external_only_found[i]++;
+                            stats->count_no_adaptor[i]++;
                         }
-                    
+                        
                     }
                     
-                    if (junction_adaptor_alignments[i].accepted == 1) {
-                        if (reads[i].trim_at_base < (minimum_read_size)) {
-                            stats->count_too_short[i]++;
-                        } else {
-                            stats->count_long_enough[i]++;
-                        }
-                    } else {
-                        stats->count_no_adaptor[i]++;
-                    }
-                    
+                    // Decide category (A, B, C, D, E)
+                    category = decide_category(stats, &reads[0], &junction_adaptor_alignments[0], &reads[1], &junction_adaptor_alignments[1]);
                 }
-                
-                // Decide category (A, B, C, D, E)
-                category = decide_category(stats, &reads[0], &junction_adaptor_alignments[0], &reads[1], &junction_adaptor_alignments[1]);
                 
                 // Trim and write reads
                 trim_and_write_pair(stats, category, &reads[0], &reads[1]);
