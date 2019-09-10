@@ -27,7 +27,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define NEXTCLIP_VERSION "1.3.2"
+#define NEXTCLIP_VERSION "1.3.3"
 #define MAX_PATH_LENGTH 1024
 #define NUMBER_OF_CATEGORIES 5
 #define SEPARATE_KMER_SIZE 11
