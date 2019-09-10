@@ -1346,14 +1346,16 @@ void process_files(MPStats* stats)
 
     // Open output files
     for (i=0; i<num_categories; i++) {
-        for (j=0; j<2; j++) {
-            char filename[MAX_PATH_LENGTH];
-            sprintf(filename, "%s_R%d.fastq", stats->output_filenames[i], j+1);
-            printf("Opening output file %s\n", filename);
-            stats->output_fp[i][j] = fopen(filename, "w");
-            if (!stats->output_fp[i][j]) {
-                printf("Error: can't open file %s\n", filename);
-                exit(2);
+        if ((duplicate_only_mode == false) || ((duplicate_only_mode == true) && (i == 3))) {
+            for (j=0; j<2; j++) {
+                char filename[MAX_PATH_LENGTH];
+                sprintf(filename, "%s_R%d.fastq", stats->output_filenames[i], j+1);
+                printf("Opening output file %s\n", filename);
+                stats->output_fp[i][j] = fopen(filename, "w");
+                if (!stats->output_fp[i][j]) {
+                    printf("Error: can't open file %s\n", filename);
+                    exit(2);
+                }
             }
         }
     }
@@ -1473,8 +1475,10 @@ void process_files(MPStats* stats)
     }
     
     for (i=0; i<num_categories; i++) {
-        for (j=0; j<2; j++) {
-            fclose(stats->output_fp[i][j]);
+        if ((duplicate_only_mode == false) || ((duplicate_only_mode == true) && (i == 3))) {
+            for (j=0; j<2; j++) {
+                fclose(stats->output_fp[i][j]);
+            }
         }
     }
     
@@ -1674,13 +1678,15 @@ void report_stats(MPStats* stats)
     }
         
     for (i=0; i<num_categories; i++) {
-        printf("\n");
-        printf("   Total pairs in category %c: %d\t%.2f %%\n", 'A'+i, stats->count_by_category[i], stats->percent_by_category[i]);
-        printf("         %c pairs long enough: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_long_enough[i], stats->percent_by_category_long_enough[i]);
-        printf("           %c pairs too short: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_too_short[i], stats->percent_by_category_too_short[i]);
-        printf("%c external clip in 1 or both: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_external_clipped[i], stats->percent_by_category_external_clipped[i]);
-        printf("     %c bases before clipping: %ld\n", 'A'+i, stats->bases_before_clipping[i]);
-        printf("       %c total bases written: %ld\n", 'A'+i, stats->bases_written[i]);
+        if ((duplicate_only_mode == false) || ((duplicate_only_mode == true) && (i == 3))) {
+            printf("\n");
+            printf("   Total pairs in category %c: %d\t%.2f %%\n", 'A'+i, stats->count_by_category[i], stats->percent_by_category[i]);
+            printf("         %c pairs long enough: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_long_enough[i], stats->percent_by_category_long_enough[i]);
+            printf("           %c pairs too short: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_too_short[i], stats->percent_by_category_too_short[i]);
+            printf("%c external clip in 1 or both: %d\t%.2f %%\n", 'A'+i, stats->count_by_category_external_clipped[i], stats->percent_by_category_external_clipped[i]);
+            printf("     %c bases before clipping: %ld\n", 'A'+i, stats->bases_before_clipping[i]);
+            printf("       %c total bases written: %ld\n", 'A'+i, stats->bases_written[i]);
+        }
     }
  
     printf("\n");
@@ -1942,7 +1948,10 @@ int main(int argc, char* argv[])
     calculate_stats(&stats);
     calculate_pcr_duplicate_stats(&stats);
     report_stats(&stats);
-    output_histograms(&stats);
+    
+    if (duplicate_only_mode == false) {
+        output_histograms(&stats);
+    }
     
     time(&end);
     seconds = difftime(end, start);
