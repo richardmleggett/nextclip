@@ -24,7 +24,7 @@ CFLAGS_NEXTCLIP = -Iinclude
 NEXTCLIP_OBJ = obj/nextclip.o obj/hash_table.o obj/hash_value.o obj/logger.o obj/binary_kmer.o obj/element.o
 
 all:remove_objects $(NEXTCLIP_OBJ)
-	mkdir -p $(BIN); $(CC) $(OPT) -o $(BIN)/nextclip $(NEXTCLIP_OBJ) -lm
+	mkdir -p $(BIN); $(CC) $(OPT) -o $(BIN)/nextclip $(NEXTCLIP_OBJ) -lm -lz
 
 clean:
 	rm obj/*
