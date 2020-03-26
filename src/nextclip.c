@@ -5,7 +5,7 @@
  *          The Genome Analysis Centre (TGAC), Norwich, UK              *
  *          richard.leggett@tgac.ac.uk    								*
  *----------------------------------------------------------------------*/
-
+#include <zlib.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -88,8 +88,8 @@ typedef struct {
 
 typedef struct {
     int read_length;
-    FILE* input_fp[2];
-    FILE* output_fp[NUMBER_OF_CATEGORIES][2];
+    gzFile input_fp[2];
+    gzFile output_fp[NUMBER_OF_CATEGORIES][2];
     FILE* log_fp;
     FILE* duplicates_fp;
     char input_filenames[2][MAX_PATH_LENGTH];
@@ -376,7 +376,7 @@ void size_hashtable(int* n_return, int* b_return)
 void usage(void)
 {
     printf("Clip and analyse Illumina Nextera Long Mate Pair reads\n" \
-           "\nSyntax: nextclip [-i r1.fastq] [-j r2.fastq] [-o prefix] [options]\n" \
+           "\nSyntax: nextclip [-i r1.fastq.gz] [-j r2.fastq.gz] [-o prefix] [options]\n" \
            "\nOptions:\n" \
            "    [-d | --remove_duplicates] Remove PCR duplicates\n"
            "    [-e | --use_category_e] Use category E\n"
@@ -597,14 +597,14 @@ void parse_command_line(int argc, char* argv[], MPStats* stats)
     
     for (i=0; i<2; i++) {
         if (stats->input_filenames[i][0] == 0) {
-            printf("Error: you must specify two input filenames\n");
+            printf("Error: you must specify two input filenames(gzip file recommanded)\n");
             exit(2);
         }
     }
     
     for (i=0; i<num_categories; i++) {
         if (stats->output_filenames[i][0] == 0) {
-            printf("Error: you must specify four output filenames\n");
+            printf("Error: you must specify four output filenames(gzip file recommanded)\n");
             exit(2);
         }
     }
@@ -912,28 +912,28 @@ void log_output_alignment(MPStats* stats, FastQRead* read, JunctionAdaptorAlignm
 
 /*----------------------------------------------------------------------*
  * Function:   get_read
- * Purpose:    Read from a file into a FastQRead structure
+ * Purpose:    Read from a file(or gzip file) into a FastQRead structure
  * Parameters: fp -> file to read from
  *             read -> structure to read into
  * Returns:    None
  *----------------------------------------------------------------------*/
-int get_read(FILE* fp, FastQRead* read)
+int get_read(gzFile fp, FastQRead* read)
 {
     int got_read = 1;
     
-    if (!fgets(read->read_header, 1024, fp)) {
+    if (0 != gzgets(fp, read->read_header, 1024)) {
         got_read = 0;
     }
 
-    if (!fgets(read->read, MAX_READ_LENGTH, fp)) {
+    if (0 != gzgets(fp, read->read, MAX_READ_LENGTH)) {
         got_read = 0;
     }
     
-    if (!fgets(read->quality_header, 1024, fp)) {
+    if (0 != gzgets(fp, read->quality_header, 1024)) {
         got_read = 0;
     }
     
-    if (!fgets(read->qualities, MAX_READ_LENGTH, fp)) {
+    if (0 != gzgets(fp, read->qualities, MAX_READ_LENGTH)) {
         got_read = 0;
     }
     
@@ -963,12 +963,16 @@ int get_read(FILE* fp, FastQRead* read)
  *             fp -> file to write to
  * Returns:    None
  *----------------------------------------------------------------------*/
-void write_read(FastQRead* read, FILE *fp)
+void write_read(FastQRead* read, gzFile fp)
 {
-    fprintf(fp, "%s\n", read->read_header);
-    fprintf(fp, "%s\n", read->read);
-    fprintf(fp, "%s\n", read->quality_header);
-    fprintf(fp, "%s\n", read->qualities);
+    gzwrite(fp, read->read_header, strlen(read->read_header));
+    gzputc(fp, '\n');
+    gzwrite(fp, read->read, strlen(read->read));
+    gzputc(fp, '\n');
+    gzwrite(fp, read->quality_header, strlen(read->quality_header));
+    gzputc(fp, '\n');
+    gzwrite(fp, read->qualities, strlen(read->qualities));
+    gzputc(fp, '\n');
 }
 
 /*----------------------------------------------------------------------*
@@ -1337,7 +1341,7 @@ void process_files(MPStats* stats)
     // Open input files
     for (i=0; i<2; i++) {
         printf("Opening input filename %s\n", stats->input_filenames[i]);
-        stats->input_fp[i] = fopen(stats->input_filenames[i], "r");
+        stats->input_fp[i] = gzopen(stats->input_filenames[i], "r");
         if (!stats->input_fp[i]) {
             printf("Error: can't open file %s\n", stats->input_filenames[i]);
             exit(2);
@@ -1349,9 +1353,9 @@ void process_files(MPStats* stats)
         if ((duplicate_only_mode == false) || ((duplicate_only_mode == true) && (i == 3))) {
             for (j=0; j<2; j++) {
                 char filename[MAX_PATH_LENGTH];
-                sprintf(filename, "%s_R%d.fastq", stats->output_filenames[i], j+1);
+                sprintf(filename, "%s_R%d.fastq.gz", stats->output_filenames[i], j+1);
                 printf("Opening output file %s\n", filename);
-                stats->output_fp[i][j] = fopen(filename, "w");
+                stats->output_fp[i][j] = gzopen(filename, "wb");
                 if (!stats->output_fp[i][j]) {
                     printf("Error: can't open file %s\n", filename);
                     exit(2);
@@ -1361,7 +1365,7 @@ void process_files(MPStats* stats)
     }
     
     // Read each entry in FASTQ files
-    while (!feof(stats->input_fp[0])) {
+    while (!gzeof(stats->input_fp[0])) {
         // Go next pair of reads
         int n_reads = 0;
         int category = -1;
@@ -1471,13 +1475,13 @@ void process_files(MPStats* stats)
     
     // Close files
     for (i=0; i<2; i++) {        
-        fclose(stats->input_fp[i]);
+        gzclose(stats->input_fp[i]);
     }
     
     for (i=0; i<num_categories; i++) {
         if ((duplicate_only_mode == false) || ((duplicate_only_mode == true) && (i == 3))) {
             for (j=0; j<2; j++) {
-                fclose(stats->output_fp[i][j]);
+                gzclose(stats->output_fp[i][j]);
             }
         }
     }

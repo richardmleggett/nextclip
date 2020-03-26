@@ -17,7 +17,7 @@ ifeq ($(MAXK),127)
    BITFIELDS = 4
 endif
 
-OPT	= $(ARCH) -Wall -O3 -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
+OPT	= $(ARCH) -Wall -O3 -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g -lz
 
 CFLAGS_NEXTCLIP = -Iinclude
 
